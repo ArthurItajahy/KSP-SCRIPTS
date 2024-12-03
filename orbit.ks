@@ -3,6 +3,7 @@
 function main{
     
     doLaunch().
+    print"LAUNCH!!".
     doAscent().
     until apoapsis > 100000{
         doAutoStage().
@@ -17,7 +18,6 @@ function doSafeStage{
 
 function doLaunch{ 
     lock throttle to 1.
-    doSafeStage().
     doSafeStage().
 }
 
