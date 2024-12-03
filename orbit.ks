@@ -1,124 +1,164 @@
-declare global originalVector to V(0, 0, 0). // Initialize globally.
-declare global oldThrust to 0. // Initialize with a default value.
+// Functional Launch Script
+// TODO: unlock steering
+// TODO: Handle thrust-limited maneuver calculations
+// TODO: Make our improver work with lists of any size
+// TODO: Make maneuvers converge faster
+// TODO: Functions using functions?
 
 function main {
-    print"Starting Launch Sequence".
-    doLaunch().
-    print"LAUNCH!!".
-    doAscent().
-    until (apoapsis > 100000) {
-        doAutoStage().
+  doLaunch().
+  doAscent().
+  until apoapsis > 100000 {
+    doAutoStage().
+    wait 1.
+  }
+  doShutdown().
+  doCircularization().
+  print "It ran!".
+  unlock steering.
+  wait until false.
+}
+
+function doCircularization {
+  local circ is list(time:seconds + 30, 0, 0, 0).
+  until false {
+    local oldScore is score(circ).
+    set circ to improve(circ).
+    if oldScore <= score(circ) {
+      break.
     }
-    print"Apoapsis reached. Preparing for circularization.".
-    wait until (periapsis > 0). // Ensure the craft is still on a suborbital trajectory.
-
-    // Example usage after reaching apoapsis:
-    wait until (apoapsis > 100000).
-    executeManeuver(time:seconds + 30). // Perform burn 30 seconds after reaching apoapsis.
-
-    print"Orbit achieved! Shutting down.".
-    doShutdown().
+  }
+  executeManeuver(circ).
 }
+
+function score {
+  parameter data.
+  local mnv is node(data[0], data[1], data[2], data[3]).
+  addManeuverToFlightPlan(mnv).
+  local result is mnv:orbit:eccentricity.
+  removeManeuverFromFlightPlan(mnv).
+  return result.
+}
+
+function improve {
+  parameter data.
+  local scoreToBeat is score(data).
+  local bestCandidate is data.
+  local candidates is list(
+    list(data[0] + 1, data[1], data[2], data[3]),
+    list(data[0] - 1, data[1], data[2], data[3]),
+    list(data[0], data[1] + 1, data[2], data[3]),
+    list(data[0], data[1] - 1, data[2], data[3]),
+    list(data[0], data[1], data[2] + 1, data[3]),
+    list(data[0], data[1], data[2] - 1, data[3]),
+    list(data[0], data[1], data[2], data[3] + 1),
+    list(data[0], data[1], data[2], data[3] - 1)
+  ).
+  for candidate in candidates {
+    local candidateScore is score(candidate).
+    if candidateScore < scoreToBeat {
+      set scoreToBeat to candidateScore.
+      set bestCandidate to candidate.
+    }
+  }
+  return bestCandidate.
+}
+
 function executeManeuver {
-    parameter utime. // Time for the burn.
-    print("Calculating automatic circularization burn.").
-    
-    // Calculate the current orbital parameters.
-    local orbitalRadius is body:radius + altitude. // Current orbital radius.
-    local mu is body:mu. // Gravitational parameter of the celestial body.
-    local v_circular is sqrt(mu / orbitalRadius). // Circular orbital velocity at current altitude.
-    local deltaV is v_circular - velocity:orbit:mag. // Required delta-v for circularization.
-
-    // Execute the burn.
-    print("Performing circularization burn.").
-    lock steering to prograde.
-    wait until (time:seconds > utime - 5). // Prepare a few seconds before the burn.
-    lock throttle to 1.
-    wait until abs(deltaV - velocity:orbit:mag) < 10. // Burn until within 10 m/s of the target velocity.
-    lock throttle to 0.1. // Fine-tune with low throttle.
-    wait until abs(deltaV - velocity:orbit:mag) < 0.5. // Achieve precision within 0.5 m/s.
-    lock throttle to 0.
-
-    print("Circularization complete. Orbit achieved.").
+  parameter mList.
+  local mnv is node(mList[0], mList[1], mList[2], mList[3]).
+  addManeuverToFlightPlan(mnv).
+  local startTime is calculateStartTime(mnv).
+  wait until time:seconds > startTime - 10.
+  lockSteeringAtManeuverTarget(mnv).
+  wait until time:seconds > startTime.
+  lock throttle to 1.
+  wait until isManeuverComplete(mnv).
+  lock throttle to 0.
+  removeManeuverFromFlightPlan(mnv).
 }
-
-
-
 
 function addManeuverToFlightPlan {
-    parameter mnv.
-    print"Adding node to flight plan.".
-    add mnv.
+  parameter mnv.
+  add mnv.
 }
 
 function calculateStartTime {
-    parameter mnv.
-    return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
+  parameter mnv.
+  return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
+}
+
+function maneuverBurnTime {
+  parameter mnv.
+  local dV is mnv:deltaV:mag.
+  local g0 is 9.80665.
+  local isp is 0.
+
+  list engines in myEngines.
+  for en in myEngines {
+    if en:ignition and not en:flameout {
+      set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+    }
+  }
+
+  local mf is ship:mass / constant():e^(dV / (isp * g0)).
+  local fuelFlow is ship:maxThrust / (isp * g0).
+  local t is (ship:mass - mf) / fuelFlow.
+
+  return t.
 }
 
 function lockSteeringAtManeuverTarget {
-    parameter mnv.
-    lock steering to mnv:burnvector.
+  parameter mnv.
+  lock steering to mnv:burnvector.
 }
 
 function isManeuverComplete {
-    parameter mnv.
-    local currentVector is mnv:burnvector.
-    // Check if maneuver has significantly diverged.
-    if vang(originalVector, currentVector) > 90 {
-        set originalVector to -1. // Reset the global variable.
-        return true.
-    }
-    return false.
+  parameter mnv.
+  if not(defined originalVector) or originalVector = -1 {
+    declare global originalVector to mnv:burnvector.
+  }
+  if vang(originalVector, mnv:burnvector) > 90 {
+    declare global originalVector to -1.
+    return true.
+  }
+  return false.
 }
 
 function removeManeuverFromFlightPlan {
-    parameter mnv.
-    print"Removing completed maneuver node.".
-    remove mnv.
-}
-
-function doSafeStage {
-    wait until stage:ready.
-    print"Separating stage.".
-    stage.
+  parameter mnv.
+  remove mnv.
 }
 
 function doLaunch {
-    lock throttle to 1.
-    doSafeStage().
+  lock throttle to 1.
+  doSafeStage().
 }
 
 function doAscent {
-    print("Starting ascent.").
-    lock targetPitch to 90. // Vertical start.
-    until (altitude > 10000) {
-        lock steering to heading(90, targetPitch).
-        wait 1.
-    }
-    // Smooth gravity turn.
-    until (apoapsis > 100000) {
-        set targetPitch to max(10, 88.963 - 1.03287 * alt:radar^0.409511). // Prevent excessive downward pitch.
-        lock steering to heading(90, targetPitch).
-        wait 1.
-    }
-    print("Ascent complete. Coasting to apoapsis.").
-    lock throttle to 0.
+  lock targetPitch to 88.963 - 1.03287 * alt:radar^0.409511.
+  set targetDirection to 90.
+  lock steering to heading(targetDirection, targetPitch).
 }
 
 function doAutoStage {
-    if ship:availableThrust < (oldThrust - 10) {
-        doSafeStage().
-        wait 1.
-        set oldThrust to ship:availableThrust. // Update the global variable.
-    }
+  if not(defined oldThrust) {
+    global oldThrust is ship:availablethrust.
+  }
+  if ship:availablethrust < (oldThrust - 10) {
+    doSafeStage(). wait 1.
+    global oldThrust is ship:availablethrust.
+  }
 }
 
 function doShutdown {
-    lock throttle to 0.
-    lock steering to prograde.
-    print"Shutdown complete.".
-    wait until false.
+  lock throttle to 0.
+  lock steering to prograde.
+}
+
+function doSafeStage {
+  wait until stage:ready.
+  stage.
 }
 
 main().
