@@ -1,46 +1,52 @@
-// Set the altitudes and other parameters
-SET TurnAltitude TO 10000.
-SET LevelAltitude TO 45000.
-SET OrbitAltitude TO 75000.
-SET TargetApoEta TO 10.
-SET CircularAltitude TO 80000.
+// Fixed Launch Script
 
-// Initial settings
-LOCK STEERING TO UP.
-LOCK THROTTLE TO 1.0.
+function main{
+    
+    doLaunch().
+    doAscent().
+    until apoapsis > 100000{
+        doAutoStage().
+    }
+    doShutdown().
+}
 
-SAS ON.
-STAGE.
+function doSafeStage{
+    wait until stage:ready.
+    stage.
+}
 
-PRINT "Getting to " + (TurnAltitude / 1000) + "km".
+function doLaunch{ 
+    lock throttle to 1.
+    doSafeStage().
+    doSafeStage().
+}
 
-WAIT UNTIL ALTITUDE > TurnAltitude.
-SAS OFF.
 
-// Force stage transition if liquid fuel is empty
-WAIT UNTIL SHIP:RESOURCE[LiquidFuel] > 0.
-WHEN SHIP:RESOURCE[LiquidFuel] = 0 THEN STAGE.
 
-PRINT "Starting first turn".
+function doAscent{
+    lock targetPitch to 88.963 - 1.03287 * alt:radar^0.409511.
+    set targetDirection to 90.
+    lock steering to heading(targetDirection, targetPitch).
+}
 
-LOCK STEERING TO HEADING(45, 90).
-WAIT UNTIL APOAPSIS > LevelAltitude.
 
-PRINT "Leveling out".
+function doAutoStage{
+    if not(defined oldThrust) {
+        
+        declare global oldThrust to ship:availableThrust.
+    }
+    if ship:availablethrust < (oldThrust - 10){
+        doSafeStage(). wait 1.
+        declare global oldThrust to ship:availablethrust.
+    }
+}
 
-LOCK STEERING TO HEADING(10, 90).
-WAIT UNTIL APOAPSIS > OrbitAltitude.
 
-LOCK THROTTLE TO 0.0.
-LOCK STEERING TO PROGRADE.
+function doShutdown{
+    lock throttle to 0.
+    lock steering to prograde.
 
-PRINT "Getting to Apoapsis".
+    wait until false.
+}
 
-WAIT UNTIL ETA:APOAPSIS < TargetApoEta.
-
-PRINT "Circularizing orbit".
-
-LOCK THROTTLE TO 1.0.
-WAIT UNTIL APOAPSIS > CircularAltitude.
-
-LOCK THROTTLE TO 0.0.
+main().
