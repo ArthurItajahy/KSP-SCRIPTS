@@ -160,5 +160,5 @@ function doSafeStage {
   wait until stage:ready.
   stage.
 }
-
+// launch
 main().
