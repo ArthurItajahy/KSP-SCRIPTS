@@ -4,6 +4,8 @@
 // TODO: Make our improver work with lists of any size
 // TODO: Make maneuvers converge faster
 // TODO: Functions using functions?
+global THROTTLE_LEVEL is 0.7.
+lock throttle to THROTTLE_LEVEL.
 
 function main {
   doLaunch().
@@ -72,7 +74,7 @@ function executeManeuver {
   wait until time:seconds > startTime - 10.
   lockSteeringAtManeuverTarget(mnv).
   wait until time:seconds > startTime.
-  lock throttle to 1.
+  lock throttle to THROTTLE_LEVEL.
   wait until isManeuverComplete(mnv).
   lock throttle to 0.
   removeManeuverFromFlightPlan(mnv).
@@ -131,8 +133,11 @@ function removeManeuverFromFlightPlan {
 }
 
 function doLaunch {
-  lock throttle to 1.
+  lock throttle to THROTTLE_LEVEL.
+  
   doSafeStage().
+  
+  
 }
 
 function doAscent {
