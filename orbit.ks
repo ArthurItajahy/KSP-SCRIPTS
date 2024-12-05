@@ -1,29 +1,31 @@
-// Functional Launch Script
-// TODO: unlock steering
-// TODO: Handle thrust-limited maneuver calculations
-// TODO: Make our improver work with lists of any size
-// TODO: Make maneuvers converge faster
-// TODO: Functions using functions?
-global THROTTLE_LEVEL is 0.25.
+// Functional Launch Script for Earth
+// TODO: Adjust throttle dynamically based on atmospheric pressure
+// TODO: Incorporate engine ignitions and ullage calculations
+// TODO: Enhance maneuver convergence accuracy
+
+global THROTTLE_LEVEL is 1.0.
 lock throttle to THROTTLE_LEVEL.
 
 function main {
   wait 10.
   doLaunch().
   doAscent().
-  until apoapsis > 100000 {
+  
+  until apoapsis > 180000 { // Target: 180 km Low Earth Orbit
+    wait 3.
     doAutoStage().
-    wait 1.
+    wait 3.
   }
+   
   doShutdown().
   doCircularization().
-  print "It ran!".
+  print "Mission Completed!".
   unlock steering.
   wait until false.
 }
 
 function doCircularization {
-  local circ is list(time:seconds + 30, 0, 0, 0).
+  local circ is list(time:seconds + 60, 0, 0, 0). // Circularization node ~60s after apogee
   until false {
     local oldScore is score(circ).
     set circ to improve(circ).
@@ -32,6 +34,16 @@ function doCircularization {
     }
   }
   executeManeuver(circ).
+}
+
+function addManeuverToFlightPlan {
+  parameter mnv.
+  add mnv.
+}
+
+function removeManeuverFromFlightPlan {
+  parameter mnv.
+  remove mnv.
 }
 
 function score {
@@ -80,17 +92,34 @@ function executeManeuver {
   lock throttle to 0.
   removeManeuverFromFlightPlan(mnv).
 }
-
-function addManeuverToFlightPlan {
+function lockSteeringAtManeuverTarget {
   parameter mnv.
-  add mnv.
+  lock steering to mnv:burnvector.
 }
+
+function isManeuverComplete {
+  parameter mnv.
+  if not(defined originalVector) or originalVector = -1 {
+    declare global originalVector to mnv:burnvector.
+  }
+  if vang(originalVector, mnv:burnvector) > 90 {
+    declare global originalVector to -1.
+    return true.
+  }
+  return false.
+}
+
 
 function calculateStartTime {
   parameter mnv.
   return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
 }
 
+function doLaunch {
+  print "Launching...".
+  lock throttle to THROTTLE_LEVEL.
+  doSafeStage().
+}
 function maneuverBurnTime {
   parameter mnv.
   local dV is mnv:deltaV:mag.
@@ -111,39 +140,9 @@ function maneuverBurnTime {
   return t.
 }
 
-function lockSteeringAtManeuverTarget {
-  parameter mnv.
-  lock steering to mnv:burnvector.
-}
-
-function isManeuverComplete {
-  parameter mnv.
-  if not(defined originalVector) or originalVector = -1 {
-    declare global originalVector to mnv:burnvector.
-  }
-  if vang(originalVector, mnv:burnvector) > 90 {
-    declare global originalVector to -1.
-    return true.
-  }
-  return false.
-}
-
-function removeManeuverFromFlightPlan {
-  parameter mnv.
-  remove mnv.
-}
-
-function doLaunch {
-  lock throttle to THROTTLE_LEVEL.
-  
-  doSafeStage().
-  
-  
-}
-
 function doAscent {
-  lock targetPitch to 88.963 - 1.03287 * alt:radar^0.409511.
-  set targetDirection to 90.
+  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
+  set targetDirection to 90. // Eastward launch
   lock steering to heading(targetDirection, targetPitch).
 }
 
@@ -160,11 +159,13 @@ function doAutoStage {
 function doShutdown {
   lock throttle to 0.
   lock steering to prograde.
+  print "Engines Shut Down.".
 }
 
 function doSafeStage {
   wait until stage:ready.
   stage.
 }
-// launch
+
+// Start the mission
 main().
