@@ -46,6 +46,8 @@ function removeManeuverFromFlightPlan {
   remove mnv.
 }
 
+
+
 function score {
   parameter data.
   local mnv is node(data[0], data[1], data[2], data[3]).
@@ -92,23 +94,27 @@ function executeManeuver {
   lock throttle to 0.
   removeManeuverFromFlightPlan(mnv).
 }
+
+
 function lockSteeringAtManeuverTarget {
   parameter mnv.
+  if not mnv:hasNode {
+    print "No maneuver node found! Aborting steering.".
+    return.
+  }
+  print "Steering to burn vector...".
   lock steering to mnv:burnvector.
 }
 
+
 function isManeuverComplete {
   parameter mnv.
-  if not(defined originalVector) or originalVector = -1 {
-    declare global originalVector to mnv:burnvector.
-  }
-  if vang(originalVector, mnv:burnvector) > 90 {
-    declare global originalVector to -1.
+  if mnv:deltaV:mag < 1 { // Less than 1 m/s of delta-V left
+    print "Maneuver complete.".
     return true.
   }
   return false.
 }
-
 
 function calculateStartTime {
   parameter mnv.
@@ -123,21 +129,28 @@ function doLaunch {
 function maneuverBurnTime {
   parameter mnv.
   local dV is mnv:deltaV:mag.
-  local g0 is 9.80665.
-  local isp is 0.
+  local g0 is 9.80665. // Standard gravity
+  local ispSum is 0.   // Sum of ISPs weighted by thrust
+  local thrustSum is 0. // Total available thrust
 
   list engines in myEngines.
   for en in myEngines {
     if en:ignition and not en:flameout {
-      set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+      set ispSum to ispSum + (en:isp * en:maxThrust).
+      set thrustSum to thrustSum + en:maxThrust.
     }
   }
 
-  local mf is ship:mass / constant():e^(dV / (isp * g0)).
-  local fuelFlow is ship:maxThrust / (isp * g0).
-  local t is (ship:mass - mf) / fuelFlow.
+  if thrustSum = 0 {
+    print "No active engines! Cannot calculate burn time.".
+    return 0.
+  }
 
-  return t.
+  local avgIsp is ispSum / thrustSum.
+  local fuelFlowRate is thrustSum / (avgIsp * g0).
+  local burnTime is dV / (avgIsp * g0) * (ship:mass / fuelFlowRate).
+
+  return burnTime.
 }
 
 function doAscent {
