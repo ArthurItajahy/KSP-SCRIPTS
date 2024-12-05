@@ -4,7 +4,7 @@
 // TODO: Make our improver work with lists of any size
 // TODO: Make maneuvers converge faster
 // TODO: Functions using functions?
-global THROTTLE_LEVEL is 0.25.
+global THROTTLE_LEVEL is 0.5.
 lock throttle to THROTTLE_LEVEL.
 
 function main {
