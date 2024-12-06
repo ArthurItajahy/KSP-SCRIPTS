@@ -150,7 +150,7 @@ function executeManeuver {
   lock throttle to 1.
   
   // Execute the burn while checking for staging and orbit insertion
-  until isManeuverComplete(mnv) or ship:orbit:periapsis > 100000 { // Ensure periapsis > 100 km (adjust for Realism Overhaul)
+  until ship:orbit:periapsis > 100000 { // Ensure periapsis > 100 km (adjust for Realism Overhaul)
     // Check if fuel is low
     doAutoStage().
     wait 0.5. // Short delay to avoid performance issues
@@ -221,15 +221,21 @@ function lockSteeringAtManeuverTarget {
 
 function isManeuverComplete {
   parameter mnv.
-  if not(defined originalVector) or originalVector = -1 {
-    declare global originalVector to mnv:burnvector.
-  }
-  if vang(originalVector, mnv:burnvector) > 90 {
-    declare global originalVector to -1.
+
+  // Get the remaining delta-v for the maneuver
+  local remainingDeltaV is mnv:deltav:mag.
+  
+  // Threshold for considering the burn complete
+  local completionThreshold is 0.5. // Adjust as needed (m/s)
+  
+  // Check if the remaining delta-v is below the threshold
+  if remainingDeltaV < completionThreshold {
     return true.
   }
+  
   return false.
 }
+
 
 function removeManeuverFromFlightPlan {
   parameter mnv.
