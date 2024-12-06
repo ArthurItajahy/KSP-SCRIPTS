@@ -17,7 +17,7 @@ function main {
     wait 3.
   }
    
-  doShutdown().
+ 
   doOrbitalBurn().
   print "Mission Completed!".
   unlock steering.
@@ -73,26 +73,19 @@ function doOrbitalBurn {
 
 function score {
   parameter data.
-
-  // Create a maneuver node with the candidate data
   local mnv is node(data[0], data[1], data[2], data[3]).
   addManeuverToFlightPlan(mnv).
 
-  // Get orbital parameters from the maneuver node
   local semiMajorAxis is mnv:orbit:semiMajorAxis.
   local eccentricity is mnv:orbit:eccentricity.
-  local periapsisAltitude is mnv:orbit:periapsis - body("Earth"):radius. // Calculate periapsis altitude
+  local periapsisAltitude is mnv:orbit:periapsis - body("Earth"):radius.
 
-  // Check if the periapsis altitude is below the Earth's surface
   if periapsisAltitude < 0 {
     removeManeuverFromFlightPlan(mnv).
-    return 1e9. // Penalize invalid orbits heavily
+    return 1e9.
   }
 
-  // Calculate a meaningful score, prioritizing near-circular orbits
   local scoreResult is abs(eccentricity) * 1000 + abs(semiMajorAxis - targetSemiMajorAxis).
-
-  // Remove the temporary maneuver node
   removeManeuverFromFlightPlan(mnv).
 
   return scoreResult.
@@ -130,46 +123,46 @@ function improve {
   return bestCandidate.
 }
 
-
 function executeManeuver {
   parameter mList.
-  
-  // Create the maneuver node
   local mnv is node(mList[0], mList[1], mList[2], mList[3]).
   addManeuverToFlightPlan(mnv).
 
-  // Calculate the start time for the burn
   local startTime is calculateStartTime(mnv).
-  wait until time:seconds > startTime - 10.
-  
-  // Align to the burn vector
+
   lockSteeringAtManeuverTarget(mnv).
 
+  wait until time:seconds > startTime - 10.
+  
+  // Calculate fuel mass and max fuel mass
+  local fuelMass is ship:mass - ship:dryMass. // Current fuel mass
+  local maxFuelMass is ship:maxFuelMass. // Maximum fuel mass at launch
+  
   // Start the burn
   wait until time:seconds > startTime.
-  lock throttle to 1.
-  
-  // Execute the burn while checking for staging and orbit insertion
-  until ship:orbit:periapsis > 100000 { // Ensure periapsis > 100 km (adjust for Realism Overhaul)
-    // Check if fuel is low
-    doAutoStage().
-    wait 0.5. // Short delay to avoid performance issues
+  lock throttle to 0.5. // Start with half throttle to prevent overshoot
+
+  until isManeuverComplete(mnv) or ship:orbit:periapsis > 100000 {
+    // Dynamically adjust throttle based on fuel mass
+    local throttleAdjustment is 0.5 + (fuelMass / maxFuelMass) * 0.5.
+    lock throttle to throttleAdjustment.
+    
+    // Update fuel mass for the next loop (assuming fuel consumption)
+    set fuelMass to ship:mass - ship:dryMass.
+    
+    wait 3.
   }
 
-  // Stop the burn
-  lock throttle to 0.
+  lock throttle to 0. // Stop the burn
   
-  // Remove the maneuver node
   removeManeuverFromFlightPlan(mnv).
 
-  // Final check to ensure orbit is stable
   if ship:orbit:periapsis > 100000 {
     print "Maneuver complete: Orbit achieved!".
   } else {
     print "Warning: Orbit not stable. Additional burn required.".
   }
 }
-
 function addManeuverToFlightPlan {
   parameter mnv.
   add mnv.
@@ -177,7 +170,8 @@ function addManeuverToFlightPlan {
 
 function calculateStartTime {
   parameter mnv.
-  return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
+  local idealBurnTime is time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
+  return idealBurnTime.
 }
 
 function maneuverBurnTime {
@@ -215,9 +209,19 @@ function maneuverBurnTime {
 
 
 function lockSteeringAtManeuverTarget {
-  parameter mnv.
-  lock steering to mnv:burnvector.
+   parameter mnv.
+   // Lock steering to the maneuver's burn vector with a smoother control
+   set burnVector to mnv:burnvector.
+   set progradeDirection to mnv:orbit:prograde.
+   
+   if (isManeuverComplete(mnv)) {
+      // Lock to prograde when close to burn completion
+      lock steering to progradeDirection.
+   } else {
+      lock steering to burnVector.
+   }
 }
+
 
 function isManeuverComplete {
   parameter mnv.
