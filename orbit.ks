@@ -3,8 +3,8 @@
 // TODO: Incorporate engine ignitions and ullage calculations
 // TODO: Enhance maneuver convergence accuracy
 
-global THROTTLE_LEVEL is 1.0.
-lock throttle to THROTTLE_LEVEL.
+global targetAltitude is 200000. // Target altitude in meters
+global targetSemiMajorAxis is body("Earth"):radius + targetAltitude.
 
 function main {
   wait 10.
@@ -26,7 +26,7 @@ function main {
 
 function doLaunch {
   print "Launching...".
-  lock throttle to THROTTLE_LEVEL.
+  lock throttle to 1.
   doSafeStage().
 }
 function doAscent {
@@ -71,27 +71,52 @@ function doOrbitalBurn {
 
 function score {
   parameter data.
+
+  // Create a maneuver node with the candidate data
   local mnv is node(data[0], data[1], data[2], data[3]).
   addManeuverToFlightPlan(mnv).
-  local result is mnv:orbit:eccentricity.
+
+  // Get orbital parameters from the maneuver node
+  local semiMajorAxis is mnv:orbit:semiMajorAxis.
+  local eccentricity is mnv:orbit:eccentricity.
+  local periapsisAltitude is mnv:orbit:periapsis - body("Earth"):radius. // Calculate periapsis altitude
+
+  // Check if the periapsis altitude is below the Earth's surface
+  if periapsisAltitude < 0 {
+    removeManeuverFromFlightPlan(mnv).
+    return 1e9. // Penalize invalid orbits heavily
+  }
+
+  // Calculate a meaningful score, prioritizing near-circular orbits
+  local scoreResult is abs(eccentricity) * 1000 + abs(semiMajorAxis - targetSemiMajorAxis).
+
+  // Remove the temporary maneuver node
   removeManeuverFromFlightPlan(mnv).
-  return result.
+
+  return scoreResult.
 }
 
 function improve {
   parameter data.
   local scoreToBeat is score(data).
   local bestCandidate is data.
+  
+  // Increase the step sizes to match realistic orbital changes
+  local stepSize is 100. // Larger step size for maneuvers (adjust as needed)
+  
+  // Generate candidates with larger changes
   local candidates is list(
-    list(data[0] + 1, data[1], data[2], data[3]),
-    list(data[0] - 1, data[1], data[2], data[3]),
-    list(data[0], data[1] + 1, data[2], data[3]),
-    list(data[0], data[1] - 1, data[2], data[3]),
-    list(data[0], data[1], data[2] + 1, data[3]),
-    list(data[0], data[1], data[2] - 1, data[3]),
-    list(data[0], data[1], data[2], data[3] + 1),
-    list(data[0], data[1], data[2], data[3] - 1)
+    list(data[0] + stepSize, data[1], data[2], data[3]),
+    list(data[0] - stepSize, data[1], data[2], data[3]),
+    list(data[0], data[1] + stepSize, data[2], data[3]),
+    list(data[0], data[1] - stepSize, data[2], data[3]),
+    list(data[0], data[1], data[2] + stepSize, data[3]),
+    list(data[0], data[1], data[2] - stepSize, data[3]),
+    list(data[0], data[1], data[2], data[3] + stepSize),
+    list(data[0], data[1], data[2], data[3] - stepSize)
   ).
+  
+  // Test each candidate's score
   for candidate in candidates {
     local candidateScore is score(candidate).
     if candidateScore < scoreToBeat {
@@ -99,8 +124,10 @@ function improve {
       set bestCandidate to candidate.
     }
   }
+  
   return bestCandidate.
 }
+
 
 function executeManeuver {
   parameter mList.
