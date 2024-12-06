@@ -174,44 +174,23 @@ function waitForManeuver {
 }
 
 function calculateEfficientOrbitAndLockSteering {
-  parameter targetAltitude. // Target orbit altitude in meters
+  parameter targetAltitude. // Target orbit altitude in meters (should be the apoapsis altitude)
 
   // Constants
   local body_earth is body("Earth").  // Select Earth as the target celestial body (Principia)
   local mu is body_earth:mu.          // Gravitational parameter of Earth
   local radius is body_earth:radius.  // Radius of Earth
 
-  // Current orbit parameters
-  local periapsis_earth is ship:orbit:periapsis. // Get periapsis
-  local apoapsis_earth is ship:orbit:apoapsis.   // Get apoapsis
-  local semiMajorAxis is (periapsis_earth + apoapsis_earth) / 2. // Semi-major axis of current orbit
-
-  // Debug prints to check values
-  print "Periapsis: " + periapsis_earth.
-  print "Apoapsis: " + apoapsis_earth.
-  print "Semi-major axis: " + semiMajorAxis.
-
-  // Target semi-major axis for the transfer orbit
-  local targetSemiMajorAxis is (radius + targetAltitude + radius + targetAltitude) / 2. // Semi-major axis for target orbit
-
-  // Debug prints to check target orbit values
-  print "Target Semi-major axis: " + targetSemiMajorAxis.
-
-  // Use the semi-major axis for Vis-viva calculations
-  local vCurrent is sqrt(mu * (2 / periapsis_earth - 1 / semiMajorAxis)). // Current velocity at periapsis
-  local vTransfer is sqrt(mu * (2 / periapsis_earth - 1 / targetSemiMajorAxis)). // Velocity needed for transfer orbit
+  // Current orbit parameters (calculate from the apoapsis)
+  local apoapsis_earth is ship:orbit:apoapsis.   // Get apoapsis (this will be the target altitude for the orbit)
   
-  // Check if velocities are valid
-  print "Current velocity: " + vCurrent.
-  print "Transfer velocity: " + vTransfer.
+  // Semi-major axis for the circular orbit at apoapsis altitude
+  local targetSemiMajorAxis is (radius + apoapsis_earth + targetAltitude) / 2. // Semi-major axis for the circular orbit
 
-  local deltaV is vTransfer - vCurrent. // Delta-V required for the transfer
-  print "Delta V: " + deltaV.
-
-  if vCurrent < 0 or vTransfer < 0 or deltaV < 0 {
-    print "Error: Invalid velocity or deltaV values.".
-    return.
-  }
+  // Use the semi-major axis for Vis-viva calculations to determine required velocity for circular orbit
+  local vCurrent is sqrt(mu * (2 / apoapsis_earth - 1 / targetSemiMajorAxis)). // Current velocity at apoapsis
+  local vTransfer is sqrt(mu / targetSemiMajorAxis). // Velocity for circular orbit at target altitude (apoapsis)
+  local deltaV is vTransfer - vCurrent. // Delta-V required to achieve circular orbit
 
   print "Calculating maneuver node for efficient orbit...".
 
