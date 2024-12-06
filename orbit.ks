@@ -185,7 +185,13 @@ function calculateEfficientOrbitAndLockSteering {
   // Current orbit parameters (calculate from the apoapsis)
   local periapsis_earth is ship:orbit:periapsis. // Get periapsis
   local apoapsis_earth is ship:orbit:apoapsis.   // Get apoapsis (this will be the target altitude for the orbit)
-  
+
+  // Validate periapsis and apoapsis values to avoid NaN
+  if periapsis_earth <= 0 or apoapsis_earth <= 0 {
+    print "Error: Invalid periapsis or apoapsis values. Aborting calculation.".
+    return.
+  }
+
   // Semi-major axis for the circular orbit at apoapsis altitude
   local targetSemiMajorAxis is (radius + apoapsis_earth + targetAltitude) / 2. // Semi-major axis for the circular orbit
 
@@ -194,14 +200,30 @@ function calculateEfficientOrbitAndLockSteering {
   local vTransfer is sqrt(mu / targetSemiMajorAxis). // Velocity for circular orbit at target altitude (apoapsis)
   local deltaV is vTransfer - vCurrent. // Delta-V required to achieve circular orbit
 
-  print "Calculating maneuver node for efficient orbit...".
+  // Debug print to check values
+  print "Current velocity: " + vCurrent.
+  print "Transfer velocity: " + vTransfer.
+  print "Delta-V: " + deltaV.
 
   // Calculate the orbital period using Kepler's third law (T = 2π * sqrt(a³/μ))
   local semiMajorAxis is (periapsis_earth + apoapsis_earth) / 2. // Semi-major axis of current orbit
   local orbitalPeriod is 2 * pi * sqrt((semiMajorAxis ^ 3) / mu). // Orbital period in seconds
 
-  // Calculate time to apoapsis
-  local timeToApoapsis is (orbitalPeriod / 2) - (ship:orbit:meanAnomaly / (2 * pi)) * orbitalPeriod.
+  // Attempt to calculate or fetch meanAnomaly
+  local meanAnomaly is ship:orbit:meanAnomaly. // Fetch mean anomaly
+
+  // Check if meanAnomaly is invalid (if it's zero or a similar invalid value)
+  if meanAnomaly = 0 {
+    print "Error: Mean anomaly is invalid or zero. Using current orbital parameters for time calculation.".
+    // Approximate the time to apoapsis as half the orbital period (assuming the mean anomaly is near zero or we're at periapsis)
+    local timeToApoapsis is orbitalPeriod / 2.
+  } else {
+    // Calculate time to apoapsis based on mean anomaly
+    local timeToApoapsis is (orbitalPeriod / 2) - (meanAnomaly / (2 * pi)) * orbitalPeriod.
+  }
+
+  // Debug print to check timeToApoapsis
+  print "Time to Apoapsis: " + timeToApoapsis.
 
   // Create the maneuver node at the correct time
   local transferNode is node(time:seconds + timeToApoapsis, 0, 0, deltaV).
@@ -213,8 +235,10 @@ function calculateEfficientOrbitAndLockSteering {
   print "Locking steering to maneuver node burn vector...".
   lock steering to transferNode:burnvector.
 
+  // Return the node at the end of the function
   return transferNode. // Return the node for further use if needed
 }
+
 
 // Start the mission
 main().
