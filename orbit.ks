@@ -182,6 +182,7 @@ function calculateEfficientOrbitAndLockSteering {
   local radius is body_earth:radius.  // Radius of Earth
 
   // Current orbit parameters (calculate from the apoapsis)
+  local periapsis_earth is ship:orbit:periapsis. // Get periapsis
   local apoapsis_earth is ship:orbit:apoapsis.   // Get apoapsis (this will be the target altitude for the orbit)
   
   // Semi-major axis for the circular orbit at apoapsis altitude
@@ -194,11 +195,17 @@ function calculateEfficientOrbitAndLockSteering {
 
   print "Calculating maneuver node for efficient orbit...".
 
-  // Create the maneuver node
-  local eta_maneuver is ship:orbit:timeToApoapsis.
-  local transferNode is node(time:seconds + eta_maneuver, 0, 0, deltaV).
+  // Calculate the orbital period using Kepler's third law (T = 2π * sqrt(a³/μ))
+  local semiMajorAxis is (periapsis_earth + apoapsis_earth) / 2. // Semi-major axis of current orbit
+  local orbitalPeriod is 2 * pi * sqrt((semiMajorAxis ^ 3) / mu). // Orbital period in seconds
 
-  // Add the maneuver node directly to the ship
+  // Calculate time to apoapsis
+  local timeToApoapsis is (orbitalPeriod / 2) - (ship:orbit:meanAnomaly / (2 * pi)) * orbitalPeriod.
+
+  // Create the maneuver node at the correct time
+  local transferNode is node(time:seconds + timeToApoapsis, 0, 0, deltaV).
+
+  // Add the maneuver node directly to the ship's flight plan
   ship:control:addnode(transferNode).
 
   // Lock steering to the maneuver node's burn vector
@@ -207,7 +214,6 @@ function calculateEfficientOrbitAndLockSteering {
 
   return transferNode. // Return the node for further use if needed
 }
-
 
 // Start the mission
 main().
