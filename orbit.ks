@@ -28,6 +28,8 @@ function doLaunch {
   print "Launching...".
   lock throttle to 1.
   doSafeStage().
+  wait 3.
+  doSafeStage().
 }
 function doAscent {
   lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
@@ -155,42 +157,34 @@ function calculateStartTime {
 
 function maneuverBurnTime {
   parameter mnv.
-  local dV is mnv:deltaV:mag.
-  local g0 is 9.80665.
-  local isp is 0.
 
-  // Get the list of active engines
+  local dV is mnv:deltaV:mag. // Delta-V for the maneuver
+  local g0 is 9.80665.        // Standard gravity (m/s^2)
+  local isp is 0.             // Initialize ISP
+  local thrust is 0.          // Initialize thrust
+
+  // Check if engines are active
   list engines in myEngines.
   for en in myEngines {
     if en:ignition and not en:flameout {
       set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+      set thrust to thrust + en:maxThrust.
     }
   }
 
-  // Validate ISP to ensure it's not zero
-  if isp <= 0 {
-    print "Error: Invalid ISP (0 or less). Cannot calculate burn time.".
-    return 0.
+  // If no engines are active, handle gracefully
+  if isp <= 0 or thrust <= 0 {
+    print "Warning: No active engines. Using estimated ISP and thrust.".
+    set isp to 300. // Use an average ISP (adjust based on typical engine ISP)
+    set thrust to 100000. // Use a rough estimate of thrust (adjust as needed)
   }
 
-  // Calculate final mass after burn using Tsiolkovsky's equation
-  local exponent is dV / (isp * g0). // Calculate the exponent
-  if exponent > 700 { // Limit the exponent to avoid overflow
-    print "Error: Delta-V too high. Burn time cannot be calculated.".
-    return 0.
-  }
+  // Compute burn time
+  local initialMass is ship:mass.
+  local finalMass is initialMass / constant():e^(dV / (isp * g0)).
+  local fuelFlow is thrust / (isp * g0).
+  local t is (initialMass - finalMass) / fuelFlow.
 
-  local mf is ship:mass / constant():e^(exponent).
-
-  // Calculate fuel flow
-  local fuelFlow is ship:maxThrust / (isp * g0).
-  if fuelFlow <= 0 {
-    print "Error: Fuel flow rate invalid (0 or less).".
-    return 0.
-  }
-
-  // Calculate burn time
-  local t is (ship:mass - mf) / fuelFlow.
   return t.
 }
 
