@@ -133,16 +133,41 @@ function improve {
 
 function executeManeuver {
   parameter mList.
+  
+  // Create the maneuver node
   local mnv is node(mList[0], mList[1], mList[2], mList[3]).
   addManeuverToFlightPlan(mnv).
+
+  // Calculate the start time for the burn
   local startTime is calculateStartTime(mnv).
   wait until time:seconds > startTime - 10.
+  
+  // Align to the burn vector
   lockSteeringAtManeuverTarget(mnv).
+
+  // Start the burn
   wait until time:seconds > startTime.
   lock throttle to 1.
-  wait until isManeuverComplete(mnv).
+  
+  // Execute the burn while checking for staging and orbit insertion
+  until isManeuverComplete(mnv) or ship:orbit:periapsis > 100000 { // Ensure periapsis > 100 km (adjust for Realism Overhaul)
+    // Check if fuel is low
+    doAutoStage().
+    wait 0.5. // Short delay to avoid performance issues
+  }
+
+  // Stop the burn
   lock throttle to 0.
+  
+  // Remove the maneuver node
   removeManeuverFromFlightPlan(mnv).
+
+  // Final check to ensure orbit is stable
+  if ship:orbit:periapsis > 100000 {
+    print "Maneuver complete: Orbit achieved!".
+  } else {
+    print "Warning: Orbit not stable. Additional burn required.".
+  }
 }
 
 function addManeuverToFlightPlan {
