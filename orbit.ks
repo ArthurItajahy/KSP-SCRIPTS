@@ -180,6 +180,7 @@ function calculateEfficientOrbitAndLockSteering {
   local body_earth is body("Earth").  // Select Earth as the target celestial body (Principia)
   local mu is body_earth:mu.          // Gravitational parameter of Earth
   local radius is body_earth:radius.  // Radius of Earth
+  local pi is 3.14159265359. 
 
   // Current orbit parameters (calculate from the apoapsis)
   local periapsis_earth is ship:orbit:periapsis. // Get periapsis
