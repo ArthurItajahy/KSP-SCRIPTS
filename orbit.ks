@@ -159,6 +159,7 @@ function maneuverBurnTime {
   local g0 is 9.80665.
   local isp is 0.
 
+  // Get the list of active engines
   list engines in myEngines.
   for en in myEngines {
     if en:ignition and not en:flameout {
@@ -166,12 +167,33 @@ function maneuverBurnTime {
     }
   }
 
-  local mf is ship:mass / constant():e^(dV / (isp * g0)).
-  local fuelFlow is ship:maxThrust / (isp * g0).
-  local t is (ship:mass - mf) / fuelFlow.
+  // Validate ISP to ensure it's not zero
+  if isp <= 0 {
+    print "Error: Invalid ISP (0 or less). Cannot calculate burn time.".
+    return 0.
+  }
 
+  // Calculate final mass after burn using Tsiolkovsky's equation
+  local exponent is dV / (isp * g0). // Calculate the exponent
+  if exponent > 700 { // Limit the exponent to avoid overflow
+    print "Error: Delta-V too high. Burn time cannot be calculated.".
+    return 0.
+  }
+
+  local mf is ship:mass / constant():e^(exponent).
+
+  // Calculate fuel flow
+  local fuelFlow is ship:maxThrust / (isp * g0).
+  if fuelFlow <= 0 {
+    print "Error: Fuel flow rate invalid (0 or less).".
+    return 0.
+  }
+
+  // Calculate burn time
+  local t is (ship:mass - mf) / fuelFlow.
   return t.
 }
+
 
 function lockSteeringAtManeuverTarget {
   parameter mnv.
