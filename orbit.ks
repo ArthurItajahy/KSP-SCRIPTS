@@ -64,22 +64,22 @@ function doOrbitalBurn {
   local targetAltitude is 180000.
 
   // Calculate the efficient orbit and lock steering
-  local node is calculateEfficientOrbitAndLockSteering(targetAltitude).
+  local node_maneuver is calculateEfficientOrbitAndLockSteering(targetAltitude).
 
     // Assume `node` is a valid maneuver node created earlier
-  local burnTime is maneuverBurnTime(node). // Calculate burn time beforehand
+  local burnTime is maneuverBurnTime(node_maneuver). // Calculate burn time beforehand
 
   // Call the function to wait for the right burn time
-  waitForManeuver(node, burnTime).
+  waitForManeuver(node_maneuver, burnTime).
 
   // Execute the burn
   lock throttle to 1.
-  wait until node:deltaV:mag < 1. // Wait until delta-V is nearly zero
+  wait until node_maneuver:deltaV:mag < 1. // Wait until delta-V is nearly zero
   lock throttle to 0.
 
   // Cleanup
   unlock steering.
-  node:remove().
+  node_maneuver:remove().
   print "Efficient orbit achieved!".
 
 }
