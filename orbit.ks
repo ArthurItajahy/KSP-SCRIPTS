@@ -23,13 +23,7 @@ function main {
   lock throttle to 0.  // Set throttle to 0 to stop any engine burns
   doSafeStage().
 
-  // Deploy all solar panels
-  list parts in shipParts.  // Get a list of all parts on the ship
-  for part in shipParts {
-      if part:hasmodule("ModuleDeployableSolarPanel") {
-          part:doevent("Extend").  // Extend the solar panel
-      }
-  }
+ 
 
 
   print "Mission Completed!".  // Print mission completion message
