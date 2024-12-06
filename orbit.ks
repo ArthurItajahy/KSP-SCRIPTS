@@ -60,38 +60,150 @@ function doSafeStage {
 function doOrbitalBurn {
   print "Starting orbital burn...".
 
-  // Define constants for the target altitude and threshold orbital speed
-  local targetAltitude is 180000. // 180 km in meters
-  local targetSpeed is sqrt(body:mu / (body:radius + targetAltitude)). // Calculate required orbital speed using vis-viva equation
+  // Define the target orbit altitude (e.g., 180 km)
+  local targetAltitude is 180000.
 
-  // Wait until the ship is at the target altitude
-  wait until alt:radar >= targetAltitude.
-  print "Reached target altitude, locking orientation to prograde...".
+  // Calculate the efficient orbit and lock steering
+  local node is calculateEfficientOrbitAndLockSteering(targetAltitude).
 
-  // Lock to current prograde orientation
-  lock steering to ship:velocity:surface:normalized.
+    // Assume `node` is a valid maneuver node created earlier
+  local burnTime is maneuverBurnTime(node). // Calculate burn time beforehand
 
-  // Engage throttle to full
-  lock throttle to 1.0.
+  // Call the function to wait for the right burn time
+  waitForManeuver(node, burnTime).
 
-   until ship:velocity:surface:mag <= targetSpeed { // Target: Will autoStage untill get to space
-    wait 3.
-    doAutoStage().
-    wait 3.
-  }
-
-  // Wait until the ship's speed matches or exceeds the target orbital speed
-  wait until ship:velocity:surface:mag >= targetSpeed.
-  print "Achieved target orbital speed, cutting throttle.".
-
-  // Stop the engines
+  // Execute the burn
+  lock throttle to 1.
+  wait until node:deltaV:mag < 1. // Wait until delta-V is nearly zero
   lock throttle to 0.
 
-  // Release control of the steering
+  // Cleanup
   unlock steering.
-  print "Orbital burn complete, control released.".
+  node:remove().
+  print "Efficient orbit achieved!".
+
 }
 
+function maneuverBurnTime2 {
+  parameter mnv.
+  local dV is mnv:deltaV:mag.
+  local g0 is 9.80665.
+  local isp is 0.
+
+  list engines in myEngines.
+  for en in myEngines {
+    if en:ignition and not en:flameout {
+      set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+    }
+  }
+
+  local mf is ship:mass / constant():e^(dV / (isp * g0)).
+  local fuelFlow is ship:maxThrust / (isp * g0).
+  local t is (ship:mass - mf) / fuelFlow.
+
+  return t.
+}
+
+function maneuverBurnTime {
+  parameter mnv.
+  local dV is mnv:deltaV:mag.  // Delta-V required for the maneuver
+  local g0 is 9.80665.          // Standard gravity (m/s^2)
+  local ispSum is 0.            // Sum of ISPs weighted by thrust
+  local thrustSum is 0.         // Total available thrust
+
+  // Create an empty list to hold engines
+  list engines.
+
+  // Iterate over all parts to filter out engines
+  for part in ship:parts {
+    if part:type = "engine" {  // Check if part is an engine
+      engines:add(part).
+    }
+  }
+
+  // Iterate through each engine to sum ISP and thrust
+  for en in engines {
+    if en:ignition and not en:flameout {  // Ensure the engine is ignited and not flamed out
+      set ispSum to ispSum + (en:isp * en:maxThrust).
+      set thrustSum to thrustSum + en:maxThrust.
+    }
+  }
+
+  // If no engines are active, return 0
+  if thrustSum = 0 {
+    print "No active engines! Cannot calculate burn time.".
+    return 0.
+  }
+
+  // Calculate the average ISP based on thrust weighting
+  local avgIsp is ispSum / thrustSum.
+
+  // Calculate the fuel flow (rate of fuel consumption based on total thrust)
+  local fuelFlow is thrustSum / (avgIsp * g0).
+
+  // Use the Tsiolkovsky rocket equation to calculate the burn time
+  local initialMass is ship:mass.
+  local finalMass is initialMass / e()^(dV / (avgIsp * g0)). // Final mass after burn
+
+  // Calculate burn time based on the change in mass and fuel flow rate
+  local burnTime is (initialMass - finalMass) / fuelFlow.
+
+  return burnTime.
+}
+
+
+function waitForManeuver {
+  parameter node. // The maneuver node
+  parameter burnTime. // Pre-calculated burn time (optional)
+
+  // If burn time isn't provided, calculate it
+  if not(defined burnTime) {
+    set burnTime to maneuverBurnTime(node).
+  }
+
+  local waitTime is node:eta - burnTime / 2. // Time to start the burn
+
+  if waitTime < time:seconds {
+    print "Burn time already passed! Starting immediately.".
+    return. // Skip waiting if time has already passed
+  }
+
+  print "Waiting for maneuver node...".  
+  wait until time:seconds > waitTime.
+  print "Time to burn!".
+}
+
+function calculateEfficientOrbitAndLockSteering {
+  parameter targetAltitude. // Target orbit altitude in meters
+
+  // Constants
+  local mu is body:mu.             // Gravitational parameter of the body
+  local radius is body:radius.     // Radius of the celestial body
+
+  // Current orbit parameters
+  local currentAltitude is ship:orbit:periapsis - radius. // Current altitude at periapsis
+  local semiMajorAxis is (radius + currentAltitude + radius + targetAltitude) / 2. // Semi-major axis of transfer
+
+  // Vis-viva equation to calculate velocities
+  local v1 is sqrt(mu / (radius + currentAltitude)). // Current velocity at periapsis
+  local vTransfer is sqrt(2 * mu / (radius + currentAltitude) - mu / semiMajorAxis). // Velocity needed for transfer orbit
+  local deltaV is vTransfer - v1. // Delta-V required for the transfer
+
+  print "Calculating maneuver node for efficient orbit...".
+
+  // Create the maneuver node
+  local eta_maneuver is ship:orbit:timeToApoapsis.
+  local transferNode is node(time:seconds + eta_maneuver, 0, 0, deltaV).
+
+  // Add the maneuver node directly to the ship
+  ship:control:addnode(transferNode).
+
+  // Lock steering to the maneuver node's burn vector
+  print "Locking steering to maneuver node burn vector...".
+  lock steering to transferNode:burnvector.
+
+  return transferNode. // Return the node for further use if needed
+}
 
 
 // Start the mission
