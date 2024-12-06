@@ -153,15 +153,15 @@ function maneuverBurnTime {
 
 
 function waitForManeuver {
-  parameter node. // The maneuver node
+  parameter node_wait_maneuver. // The maneuver node
   parameter burnTime. // Pre-calculated burn time (optional)
 
   // If burn time isn't provided, calculate it
   if not(defined burnTime) {
-    set burnTime to maneuverBurnTime(node).
+    set burnTime to maneuverBurnTime(node_wait_maneuver).
   }
 
-  local waitTime is node:eta - burnTime / 2. // Time to start the burn
+  local waitTime is node_wait_maneuver:eta - burnTime / 2. // Time to start the burn
 
   if waitTime < time:seconds {
     print "Burn time already passed! Starting immediately.".
@@ -177,17 +177,41 @@ function calculateEfficientOrbitAndLockSteering {
   parameter targetAltitude. // Target orbit altitude in meters
 
   // Constants
-  local mu is body:mu.             // Gravitational parameter of the body
-  local radius is body:radius.     // Radius of the celestial body
+  local body_earth is body("Earth").  // Select Earth as the target celestial body (Principia)
+  local mu is body_earth:mu.          // Gravitational parameter of Earth
+  local radius is body_earth:radius.  // Radius of Earth
 
   // Current orbit parameters
-  local currentAltitude is ship:orbit:periapsis - radius. // Current altitude at periapsis
-  local semiMajorAxis is (radius + currentAltitude + radius + targetAltitude) / 2. // Semi-major axis of transfer
+  local periapsis_earth is ship:orbit:periapsis. // Get periapsis
+  local apoapsis_earth is ship:orbit:apoapsis.   // Get apoapsis
+  local semiMajorAxis is (periapsis_earth + apoapsis_earth) / 2. // Semi-major axis of current orbit
 
-  // Vis-viva equation to calculate velocities
-  local v1 is sqrt(mu / (radius + currentAltitude)). // Current velocity at periapsis
-  local vTransfer is sqrt(2 * mu / (radius + currentAltitude) - mu / semiMajorAxis). // Velocity needed for transfer orbit
-  local deltaV is vTransfer - v1. // Delta-V required for the transfer
+  // Debug prints to check values
+  print "Periapsis: " + periapsis_earth.
+  print "Apoapsis: " + apoapsis_earth.
+  print "Semi-major axis: " + semiMajorAxis.
+
+  // Target semi-major axis for the transfer orbit
+  local targetSemiMajorAxis is (radius + targetAltitude + radius + targetAltitude) / 2. // Semi-major axis for target orbit
+
+  // Debug prints to check target orbit values
+  print "Target Semi-major axis: " + targetSemiMajorAxis.
+
+  // Use the semi-major axis for Vis-viva calculations
+  local vCurrent is sqrt(mu * (2 / periapsis_earth - 1 / semiMajorAxis)). // Current velocity at periapsis
+  local vTransfer is sqrt(mu * (2 / periapsis_earth - 1 / targetSemiMajorAxis)). // Velocity needed for transfer orbit
+  
+  // Check if velocities are valid
+  print "Current velocity: " + vCurrent.
+  print "Transfer velocity: " + vTransfer.
+
+  local deltaV is vTransfer - vCurrent. // Delta-V required for the transfer
+  print "Delta V: " + deltaV.
+
+  if vCurrent < 0 or vTransfer < 0 or deltaV < 0 {
+    print "Error: Invalid velocity or deltaV values.".
+    return.
+  }
 
   print "Calculating maneuver node for efficient orbit...".
 
