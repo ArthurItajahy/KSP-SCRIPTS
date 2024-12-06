@@ -19,17 +19,18 @@ function main {
     doAutoStage().
   }
 
-    // End of the program - Unlock all controls
+  // End of the program - Unlock all controls
   lock throttle to 0.  // Set throttle to 0 to stop any engine burns
   doSafeStage().
 
-  // Extend the solar panels
-  for part in ship:parts {
+  // Deploy all solar panels
+  list parts in shipParts.  // Get a list of all parts on the ship
+  for part in shipParts {
       if part:hasmodule("ModuleDeployableSolarPanel") {
-          local panelModule is part:getmodule("ModuleDeployableSolarPanel").
-          panelModule:doevent("Extend").  // Trigger the "Extend" action for the solar panel
+          part:doevent("Extend").  // Extend the solar panel
       }
   }
+
 
   print "Mission Completed!".  // Print mission completion message
 
