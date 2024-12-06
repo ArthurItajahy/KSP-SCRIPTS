@@ -22,6 +22,15 @@ function main {
     // End of the program - Unlock all controls
   lock throttle to 0.  // Set throttle to 0 to stop any engine burns
 
+  doSafeStage().
+  // Extend the solar panels
+  list parts in shipParts.  // Get a list of all parts on the ship
+  for part in shipParts {
+      if part:hasmodule("ModuleDeployableSolarPanel") {
+          part:module("ModuleDeployableSolarPanel"):doevent("Extend Panel").  // Extend the solar panel
+      }
+  }
+
   print "Mission Completed!".  // Print mission completion message
 
   // Unlock all controls
