@@ -18,107 +18,10 @@ function main {
   }
    
   doShutdown().
-  doCircularization().
+  doOrbitalBurn().
   print "Mission Completed!".
   unlock steering.
   wait until false.
-}
-
-function doCircularization {
-  local circ is list(time:seconds + 60, 0, 0, 0). // Circularization node ~60s after apogee
-  until false {
-    local oldScore is score(circ).
-    set circ to improve(circ).
-    if oldScore <= score(circ) {
-      break.
-    }
-  }
-  executeManeuver(circ).
-}
-
-function addManeuverToFlightPlan {
-  parameter mnv.
-  add mnv.
-}
-
-function removeManeuverFromFlightPlan {
-  parameter mnv.
-  remove mnv.
-}
-
-
-
-function score {
-  parameter data.
-  local mnv is node(data[0], data[1], data[2], data[3]).
-  addManeuverToFlightPlan(mnv).
-  local result is mnv:orbit:eccentricity.
-  removeManeuverFromFlightPlan(mnv).
-  return result.
-}
-
-function improve {
-  parameter data.
-  local scoreToBeat is score(data).
-  local bestCandidate is data.
-  local candidates is list(
-    list(data[0] + 1, data[1], data[2], data[3]),
-    list(data[0] - 1, data[1], data[2], data[3]),
-    list(data[0], data[1] + 1, data[2], data[3]),
-    list(data[0], data[1] - 1, data[2], data[3]),
-    list(data[0], data[1], data[2] + 1, data[3]),
-    list(data[0], data[1], data[2] - 1, data[3]),
-    list(data[0], data[1], data[2], data[3] + 1),
-    list(data[0], data[1], data[2], data[3] - 1)
-  ).
-  for candidate in candidates {
-    local candidateScore is score(candidate).
-    if candidateScore < scoreToBeat {
-      set scoreToBeat to candidateScore.
-      set bestCandidate to candidate.
-    }
-  }
-  return bestCandidate.
-}
-
-function executeManeuver {
-  parameter mList.
-  local mnv is node(mList[0], mList[1], mList[2], mList[3]).
-  addManeuverToFlightPlan(mnv).
-  local startTime is calculateStartTime(mnv).
-  wait until time:seconds > startTime - 10.
-  lockSteeringAtManeuverTarget(mnv).
-  wait until time:seconds > startTime.
-  lock throttle to THROTTLE_LEVEL.
-  wait until isManeuverComplete(mnv).
-  lock throttle to 0.
-  removeManeuverFromFlightPlan(mnv).
-}
-
-
-function lockSteeringAtManeuverTarget {
-  parameter mnv.
-  if not mnv:hasNode {
-    print "No maneuver node found! Aborting steering.".
-    return.
-  }
-  print "Steering to burn vector...".
-  lock steering to mnv:burnvector.
-}
-
-
-function isManeuverComplete {
-  parameter mnv.
-  if mnv:deltaV:mag < 1 { // Less than 1 m/s of delta-V left
-    print "Maneuver complete.".
-    return true.
-  }
-  return false.
-}
-
-function calculateStartTime {
-  parameter mnv.
-  return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
 }
 
 function doLaunch {
@@ -126,33 +29,6 @@ function doLaunch {
   lock throttle to THROTTLE_LEVEL.
   doSafeStage().
 }
-function maneuverBurnTime {
-  parameter mnv.
-  local dV is mnv:deltaV:mag.
-  local g0 is 9.80665. // Standard gravity
-  local ispSum is 0.   // Sum of ISPs weighted by thrust
-  local thrustSum is 0. // Total available thrust
-
-  list engines in myEngines.
-  for en in myEngines {
-    if en:ignition and not en:flameout {
-      set ispSum to ispSum + (en:isp * en:maxThrust).
-      set thrustSum to thrustSum + en:maxThrust.
-    }
-  }
-
-  if thrustSum = 0 {
-    print "No active engines! Cannot calculate burn time.".
-    return 0.
-  }
-
-  local avgIsp is ispSum / thrustSum.
-  local fuelFlowRate is thrustSum / (avgIsp * g0).
-  local burnTime is dV / (avgIsp * g0) * (ship:mass / fuelFlowRate).
-
-  return burnTime.
-}
-
 function doAscent {
   lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
   set targetDirection to 90. // Eastward launch
@@ -179,6 +55,44 @@ function doSafeStage {
   wait until stage:ready.
   stage.
 }
+
+
+function doOrbitalBurn {
+  print "Starting orbital burn...".
+
+  // Define constants for the target altitude and threshold orbital speed
+  local targetAltitude is 180000. // 180 km in meters
+  local targetSpeed is sqrt(body:mu / (body:radius + targetAltitude)). // Calculate required orbital speed using vis-viva equation
+
+  // Wait until the ship is at the target altitude
+  wait until alt:radar >= targetAltitude.
+  print "Reached target altitude, locking orientation to prograde...".
+
+  // Lock to current prograde orientation
+  lock steering to ship:velocity:surface:normalized.
+
+  // Engage throttle to full
+  lock throttle to 1.0.
+
+   until ship:velocity:surface:mag <= targetSpeed { // Target: Will autoStage untill get to space
+    wait 3.
+    doAutoStage().
+    wait 3.
+  }
+
+  // Wait until the ship's speed matches or exceeds the target orbital speed
+  wait until ship:velocity:surface:mag >= targetSpeed.
+  print "Achieved target orbital speed, cutting throttle.".
+
+  // Stop the engines
+  lock throttle to 0.
+
+  // Release control of the steering
+  unlock steering.
+  print "Orbital burn complete, control released.".
+}
+
+
 
 // Start the mission
 main().
