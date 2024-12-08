@@ -52,7 +52,7 @@ function doLaunch {
 }
 function doAscent {
   lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
-  set targetDirection to 90. // Eastward launch
+  set targetDirection to 87. // Eastward launch
   lock steering to heading(targetDirection, targetPitch).
   print targetPitch.
 }
