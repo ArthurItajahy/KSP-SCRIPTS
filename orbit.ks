@@ -14,7 +14,7 @@ function main {
     doAutoStage().
    wait 3.
   }
-  lock steering to heading(87, 0).
+  lock steering to heading(-87, 0).
   until periapsis > 100000 { // Target: 180 km Low Earth Orbit
     wait 3.
     doAutoStage().
