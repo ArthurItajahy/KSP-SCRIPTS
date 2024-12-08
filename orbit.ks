@@ -4,7 +4,7 @@
 // TODO: Enhance maneuver convergence accurac
 
 function main {
-
+  startingMission().
   startCountDown().
   doLaunch().
   doAscent().
@@ -33,7 +33,17 @@ function main {
   unlock steering.  // Unlock steering control
   unlock throttle.  // Unlock throttle control (optional, as throttle is already set to 0)
 
+  // End Script
+  // Stop the script
+  print "Script completed successfully!".  // Inform the user
+  wait until false.  // Prevent the script from executing further
 
+}
+function startingMission{
+  PRINT "=========================================".
+  PRINT "      MISSION: LOW ORBIT SATELLITE".
+  PRINT "        ROCKET: ARARA-90-STAR-ONE".
+  PRINT "=========================================".
 }
 function startCountDown{
   PRINT "Counting down:".
