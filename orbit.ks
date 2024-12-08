@@ -4,7 +4,8 @@
 // TODO: Enhance maneuver convergence accurac
 
 function main {
-  wait 10.
+
+  startCountDown().
   doLaunch().
   doAscent().
   
@@ -33,6 +34,13 @@ function main {
   unlock throttle.  // Unlock throttle control (optional, as throttle is already set to 0)
 
 
+}
+function startCountDown{
+  PRINT "Counting down:".
+  FROM {local countdown is 10.} UNTIL countdown = 0 STEP {SET countdown to countdown - 1.} DO {
+    PRINT "..." + countdown.
+    WAIT 1. // pauses the script here for 1 second.
+}
 }
 
 function doLaunch {
