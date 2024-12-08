@@ -13,7 +13,7 @@ function main {
     doAutoStage().
    wait 3.
   }
-  lock steering to heading(90, 0).
+  lock steering to heading(87, 0).
   until periapsis > 100000 { // Target: 180 km Low Earth Orbit
     wait 3.
     doAutoStage().
@@ -32,7 +32,7 @@ function main {
   unlock steering.  // Unlock steering control
   unlock throttle.  // Unlock throttle control (optional, as throttle is already set to 0)
 
-  wait until false.  // Infinite loop to keep the program running and halt the script
+
 }
 
 function doLaunch {
