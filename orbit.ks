@@ -112,23 +112,36 @@ function doCircularization {
   print "Throttle set to full power.".
 
   // Keep burning until periapsis exceeds 100 km
-  until ship:orbit:periapsis > (body("Earth"):radius + 100000) {
-      doAutoStage(). // Auto-stage if necessary
-      wait 0.1.      // Small delay to reduce CPU usage
+  LOCK THROTTLE TO 1. // Ensure throttle is set to full initially
+  UNTIL ship:orbit:periapsis > (body("Earth"):radius + 100000) {
+      DOAUTOSTAGE(). // Auto-stage if necessary
+      PRINT "Periapsis: " + ROUND(ship:orbit:periapsis / 1000, 2) + " km" AT (0, 0). // Debugging info
+      WAIT 0.1. // Small delay to reduce CPU usage
+  }
+  // Fine-tune the burn to finish circularization
+ LOCK THROTTLE TO 0.2. // Reduce throttle for precision
+PRINT "Fine-tuning circularization...".
+
+  UNTIL circNode:deltav:mag < 1.0 OR ship:orbit:periapsis > (body("Earth"):radius + 100000) {
+      // Monitor burn progress
+      PRINT "Delta-V remaining: " + ROUND(circNode:deltav:mag, 2) + " m/s, Periapsis: " + ROUND(ship:orbit:periapsis / 1000, 2) + " km" AT (0, 0).
+      WAIT 0.1. // Short delay for real-time updates
   }
 
-  // Fine-tune the burn to finish circularization
-  lock throttle to 0.2. // Reduce throttle for precision
-  print "Fine-tuning circularization...".
-  wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000).
+  // Stop the burn
+  LOCK THROTTLE TO 0.
+  PRINT "Burn complete. Removing circularization node.".
 
-  // Cut off the burn
-  lock throttle to 0.
-  remove circNode.
-  print "Circularization complete! Orbit established.".
+  // Remove the node if it still exists
+  IF circNode:exists {
+      REMOVE circNode.
+  }
+
+  // Final message
+  PRINT "Circularization complete! Orbit established.".
 
   // Final cleanup
-  unlock steering.
+  UNLOCK STEERING.
 }
 function calculateBurnTime {
   parameter delta_v.
