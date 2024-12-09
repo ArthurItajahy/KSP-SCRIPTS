@@ -92,9 +92,6 @@ function doAscent {
 function doCircularization {
   print "Preparing for circularization...".
 
-  // Wait until near apoapsis
-  wait until eta:apoapsis < 30. // Adjust this value if needed (30 seconds to apoapsis)
-
   // Calculate the required burn to circularize
   local mu is body("Earth"):mu. // Gravitational parameter of Earth
   local r_apoasis is ship:orbit:apoapsis. // Distance to apoapsis
@@ -111,19 +108,14 @@ function doCircularization {
   // Align to the maneuver node
   lock steering to circNode:burnvector.
 
-  // Wait until burn start time
-  local burn_time is calculateBurnTime(delta_v).
-  local burn_start_time is time:seconds + eta:apoapsis - burn_time / 2.
-  wait until time:seconds > burn_start_time.
-
   // Execute the burn
   print "Executing circularization burn...".
   lock throttle to 1.
-  wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000). // Cutoff conditions
-    {
-      doAutoStage().
-
+  wait until ship:orbit:periapsis > 100000.{
+    doAutoStage().
   }
+
+  wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000). // Cutoff conditions
 
   // Finish the burn
   lock throttle to 0.
