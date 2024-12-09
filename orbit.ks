@@ -53,57 +53,43 @@ FUNCTION doAscent {
   SET altitudeExponent TO 0.38.   // Exponent for smooth gravity turn
   SET moonInclination TO 28.6.    // Moon's orbital inclination in degrees
   SET targetDeltaV TO 8.3.        // Target Delta-V in m/s
-    
+
   // Determine launch azimuth based on Moon's inclination
   SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
 
-  // Example to calculate Delta-V manually
-  SET Isp TO 350.   // Example specific impulse (seconds)
-  SET g0 TO 9.81.   // Standard gravity
-  SET initialMass TO ship:mass.  // Get initial mass
-  SET fuelAmount TO ship:liquidfuel.  // Get fuel amount in units
-  SET fuelMass TO fuelAmount * 5.  // Convert to mass (kg) using assumed density
+  PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
+  
+  // Begin ascent loop
+  UNTIL SHIP:STAGEDELTAV:PARTS:0 >= targetDeltaV {
+    // Calculate dynamic pitch based on altitude
+    SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
+    LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
 
-  // Calculate final mass after fuel is burned
-  SET finalMass TO initialMass - fuelMass.
+    // Adjust throttle dynamically
+    IF alt:radar < 35000 {
+      LOCK throttle TO 1. // Full throttle below 35 km
+    } ELSE {
+      LOCK throttle TO 0.7. // Reduce throttle for upper atmosphere
+    }
 
-  // Estimate delta-V with a simplified formula
-  SET deltaV TO Isp * g0 * (initialMass - finalMass) / initialMass.
-
-  PRINT "Calculated Delta-V: " + ROUND(deltaV, 2) + " m/s.".
-
-      PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
-      
-      // Begin ascent loop
-      until deltaV >= targetDeltaV {
-          // Calculate dynamic pitch based on altitude
-          SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
-          LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
-
-          // Adjust throttle dynamically
-          IF alt:radar < 35000 {
-              LOCK throttle TO 1. // Full throttle below 35 km
-          } ELSE {
-              LOCK throttle TO 0.7. // Reduce throttle for upper atmosphere
-          }
-
-          // Auto-staging logic
-          doAutoStage().
-          
-          // Debugging information
-          PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(deltaV, 2) + " m/s.".
-          
-          WAIT 0.5. // Small delay for control updates
-      }
-
-      // Once the target Delta-V is achieved, cut the throttle
-      LOCK throttle TO 0.
-      PRINT "Target Delta-V reached. Burn complete.".
-      
-      // Final adjustments in space
-      PRINT "Orbit inclination matched with Moon. Shutting down engines.".
-      LOCK steering TO prograde. // Maintain current direction for stability
+    // Auto-staging logic
+    doAutoStage().
+    wait 1.
+    
+    // Debugging information
+    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(SHIP:STAGEDELTAV, 2) + " m/s.".
+    
+    WAIT 0.5. // Small delay for control updates
   }
+
+  // Once the target Delta-V is achieved, cut the throttle
+  LOCK throttle TO 0.
+  PRINT "Target Delta-V reached. Burn complete.".
+  
+  // Final adjustments in space
+  PRINT "Orbit inclination matched with Moon. Shutting down engines.".
+  LOCK steering TO prograde. // Maintain current direction for stability
+}
 
 //function doAscent {
 //  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
@@ -117,7 +103,8 @@ function doAutoStage {
     global oldThrust is ship:availablethrust.
   }
   if ship:availablethrust < (oldThrust - 10) {
-    doSafeStage(). wait 4.
+    doSafeStage(). 
+    wait 4.
     lock throttle to 0.3.
     wait 5.
     lock throttle to 0.7.
