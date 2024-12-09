@@ -77,7 +77,7 @@ FUNCTION doAscent {
     wait 1.
     
     // Debugging information
-    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(SHIP:STAGEDELTAV, 2) + " m/s.".
+    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(SHIP:DELTAV:CURRENT, 2) + " m/s.".
     
     WAIT 0.5. // Small delay for control updates
   }
