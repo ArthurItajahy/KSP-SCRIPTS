@@ -105,7 +105,7 @@ FUNCTION calculateDeltaV {
 
   // Get initial and final mass (wet and dry mass)
   SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
-  SET fuelMass TO ship:DELTAV * 5.  // Fuel mass (assuming density)
+  SET fuelMass TO ship:DELTAV.  // Fuel mass (assuming density)
   SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
   PRINT "FINAL MASS: " + finalMass.
   PRINT "FUEL MASS: " + fuelMass.
