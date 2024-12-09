@@ -111,7 +111,7 @@ function doCircularization {
   // Execute the burn
   print "Executing circularization burn...".
   lock throttle to 1.
-  wait until ship:orbit:periapsis > 100000.{
+  until ship:orbit:periapsis > 100000.{
     doAutoStage().
   }
 
