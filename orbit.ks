@@ -107,31 +107,28 @@ function doCircularization {
 
   // Align to the maneuver node
   lock steering to circNode:burnvector.
-// Start the burn
-  lock throttle to 1.
-  print "Throttle set to full power.".
-
-  // Keep burning until periapsis exceeds 100 km
+// Start main burn
   LOCK THROTTLE TO 1. // Ensure throttle is set to full initially
-  UNTIL ship:orbit:periapsis > (body("Earth"):radius + 100000) {
+
+  UNTIL SHIP:VELOCITY:SURFACE:MAG > 8300 {
       DOAUTOSTAGE(). // Auto-stage if necessary
-      PRINT "Periapsis: " + ROUND(ship:orbit:periapsis / 1000, 2) + " km" AT (0, 0). // Debugging info
+      PRINT "Speed: " + ROUND(SHIP:VELOCITY:SURFACE:MAG, 2) + " m/s, Periapsis: " + ROUND(SHIP:ORBIT:PERIAPSIS / 1000, 2) + " km" AT (0, 0). // Debugging info
       WAIT 0.1. // Small delay to reduce CPU usage
   }
-  // Fine-tune the burn to finish circularization
- LOCK THROTTLE TO 0.2. // Reduce throttle for precision
-PRINT "Fine-tuning circularization...".
 
-  UNTIL circNode:deltav:mag < 1.0 OR ship:orbit:periapsis > (body("Earth"):radius + 100000) {
+  // Reduce throttle for precision burn
+  LOCK THROTTLE TO 0.2. 
+  PRINT "Fine-tuning to reach target velocity...".
+
+  UNTIL SHIP:VELOCITY:SURFACE:MAG > 8300.1 OR SHIP:ORBIT:PERIAPSIS > (BODY("Earth"):RADIUS + 100000) {
       // Monitor burn progress
-      PRINT "Delta-V remaining: " + ROUND(circNode:deltav:mag, 2) + " m/s, Periapsis: " + ROUND(ship:orbit:periapsis / 1000, 2) + " km" AT (0, 0).
+      PRINT "Speed: " + ROUND(SHIP:VELOCITY:SURFACE:MAG, 2) + " m/s, Periapsis: " + ROUND(SHIP:ORBIT:PERIAPSIS / 1000, 2) + " km" AT (0, 0).
       WAIT 0.1. // Short delay for real-time updates
   }
 
   // Stop the burn
   LOCK THROTTLE TO 0.
-  PRINT "Burn complete. Removing circularization node.".
-
+  PRINT "Target velocity of 8.3 km/s achieved. Circularization complete!".
   // Remove the node if it still exists
   IF circNode:exists {
       REMOVE circNode.
