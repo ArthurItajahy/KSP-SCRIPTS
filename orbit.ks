@@ -8,6 +8,7 @@ function main {
   startCountDown().
   doLaunch().
   doAscent().
+  doCircularization().
   doSafeStage().
 
  
@@ -57,11 +58,6 @@ function doAscent {
   // Target direction is already aligned with the Moon's inclination
   set targetDirection to 87. // Close to eastward
 
-  // Auto-stage configuration
-  if not (defined oldThrust) {
-    global oldThrust is ship:availablethrust. // Store initial thrust
-  }
-
   // Ascent loop
   until ship:orbit:apoapsis > targetApoapsis {
     // Calculate dynamic pitch adjustment based on radar altitude
@@ -79,12 +75,7 @@ function doAscent {
     }
 
     // Auto-staging logic
-    if ship:availablethrust < (oldThrust - 10) {
-      print "Auto-staging...".
-      stage. // Trigger next stage
-      wait 1. // Allow for staging delay
-      set oldThrust to ship:availablethrust. // Update thrust for next stage
-    }
+    doAutoStage().
 
     // Print debugging information
     print "Target pitch: " + round(targetPitch, 2) + "°, Apoapsis: " + round(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + round(throttle * 100, 1) + "%.".
@@ -106,8 +97,8 @@ function doCircularization {
 
   // Calculate the required burn to circularize
   local mu is body("Earth"):mu. // Gravitational parameter of Earth
-  local r is ship:orbit:apoapsis. // Distance to apoapsis
-  local v_circular is sqrt(mu / r). // Circular orbital velocity
+  local r_apoasis is ship:orbit:apoapsis. // Distance to apoapsis
+  local v_circular is sqrt(mu / r_apoasis). // Circular orbital velocity
   local v_current is velocity:orbit:mag. // Current orbital velocity
   local delta_v is v_circular - v_current. // Required delta-V
 
