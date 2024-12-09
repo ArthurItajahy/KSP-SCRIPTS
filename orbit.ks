@@ -61,14 +61,16 @@ FUNCTION doAscent {
   SET Isp TO 350.   // Example specific impulse (seconds)
   SET g0 TO 9.81.   // Standard gravity
   SET initialMass TO ship:mass.  // Get initial mass
-  SET fuelMass TO ship:resource(amount, "LiquidFuel").  // Get fuel amount
+  SET fuelAmount TO ship:resource("LiquidFuel").  // Get fuel amount in units
+  SET fuelMass TO fuelAmount * 5.  // Convert to mass (kg) using assumed density
+
+  // Calculate final mass after fuel is burned
+  SET finalMass TO initialMass - fuelMass.
 
   // Calculate delta-v
-  SET finalMass TO initialMass - fuelMass.
   SET deltaV TO Isp * g0 * LOG(initialMass / finalMass).
 
   PRINT "Calculated Delta-V: " + ROUND(deltaV, 2) + " m/s.".
-
 
       PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
       
