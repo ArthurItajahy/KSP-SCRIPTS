@@ -8,20 +8,6 @@ function main {
   startCountDown().
   doLaunch().
   doAscent().
-  
-  until apoapsis > 180000 { // Target: 180 km Low Earth Orbit
-    wait 3.
-    doAutoStage().
-   wait 3.
-  }
-  lock steering to heading(70, 0).
-  until periapsis > 100000 { // Target: 180 km Low Earth Orbit
-    wait 3.
-    doAutoStage().
-  }
-
-  // End of the program - Unlock all controls
-  lock throttle to 0.  // Set throttle to 0 to stop any engine burns
   doSafeStage().
 
  
@@ -60,12 +46,64 @@ function doLaunch {
   wait 3.
   doSafeStage().
 }
+
 function doAscent {
-  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
-  set targetDirection to 87. // Eastward launch
-  lock steering to heading(targetDirection, targetPitch).
-  print targetPitch.
+  // Define key parameters
+  set targetApoapsis to 180000. // Target apoapsis in meters (180 km for low Earth orbit)
+  set initialPitch to 88.5. // Starting pitch angle
+  set pitchFactor to 0.9. // Controls the rate of gravity turn
+  set altitudeExponent to 0.38. // Exponent for smooth gravity turn
+
+  // Target direction is already aligned with the Moon's inclination
+  set targetDirection to 87. // Close to eastward
+
+  // Auto-stage configuration
+  if not (defined oldThrust) {
+    global oldThrust is ship:availablethrust. // Store initial thrust
+  }
+
+  // Ascent loop
+  until ship:orbit:apoapsis > targetApoapsis {
+    // Calculate dynamic pitch adjustment based on radar altitude
+    set targetPitch to initialPitch - pitchFactor * alt:radar^altitudeExponent.
+    lock steering to heading(targetDirection, targetPitch). // Update heading dynamically
+
+    // Adjust throttle dynamically to control ascent
+    if alt:radar < 35000 {
+      // Full throttle in lower atmosphere
+      lock throttle to 1.
+    } else {
+      // Reduce throttle as apoapsis approaches target
+      set throttleAdjustment to (targetApoapsis - ship:orbit:apoapsis) / targetApoapsis.
+      lock throttle to max(0.2, min(1, throttleAdjustment)). // Throttle between 20% and 100%
+    }
+
+    // Auto-staging logic
+    if ship:availablethrust < (oldThrust - 10) {
+      print "Auto-staging...".
+      stage. // Trigger next stage
+      wait 1. // Allow for staging delay
+      set oldThrust to ship:availablethrust. // Update thrust for next stage
+    }
+
+    // Print debugging information
+    print "Target pitch: " + round(targetPitch, 2) + "°, Apoapsis: " + round(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + round(throttle * 100, 1) + "%.".
+
+    wait 0.5. // Short delay for control updates
+  }
+
+  // Once target apoapsis is reached, hold prograde for efficiency
+  print "Target apoapsis reached. Holding prograde.".
+  lock steering to prograde.
+  lock throttle to 0. // Cut throttle temporarily
 }
+
+//function doAscent {
+//  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
+ // set targetDirection to 87. // Eastward launch
+ // lock steering to heading(targetDirection, targetPitch).
+//  print targetPitch.
+//}
 
 function doAutoStage {
   if not(defined oldThrust) {
