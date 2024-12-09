@@ -120,6 +120,10 @@ function doCircularization {
   print "Executing circularization burn...".
   lock throttle to 1.
   wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000). // Cutoff conditions
+    {
+      doAutoStage().
+
+  }
 
   // Finish the burn
   lock throttle to 0.
