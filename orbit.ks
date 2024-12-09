@@ -60,7 +60,7 @@ FUNCTION doAscent {
   PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
   
   // Begin ascent loop
-  UNTIL SHIP:STAGEDELTAV>= targetDeltaV {
+  UNTIL SHIP:DELTAV:CURRENT>= targetDeltaV {
     // Calculate dynamic pitch based on altitude
     SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
     LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
