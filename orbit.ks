@@ -61,7 +61,7 @@ FUNCTION doAscent {
   SET Isp TO 350.   // Example specific impulse (seconds)
   SET g0 TO 9.81.   // Standard gravity
   SET initialMass TO ship:mass.  // Get initial mass
-  SET fuelAmount TO ship:resource("LiquidFuel").  // Get fuel amount in units
+  SET fuelAmount TO ship:liquidfuel.  // Get fuel amount in units
   SET fuelMass TO fuelAmount * 5.  // Convert to mass (kg) using assumed density
 
   // Calculate final mass after fuel is burned
