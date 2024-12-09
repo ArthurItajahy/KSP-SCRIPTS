@@ -8,7 +8,6 @@ function main {
   startCountDown().
   doLaunch().
   doAscent().
-  doCircularization().
   doSafeStage().
 
  
@@ -17,7 +16,6 @@ function main {
   print "Mission Completed!".  // Print mission completion message
 
   // Unlock all controls
-  unlock steering.  // Unlock steering control
   unlock throttle.  // Unlock throttle control (optional, as throttle is already set to 0)
 
   // End Script
@@ -50,44 +48,42 @@ function doLaunch {
 
 FUNCTION doAscent {
     // Define key parameters
-    SET targetApoapsis TO 180000. // Target apoapsis in meters (180 km for low Earth orbit)
-    SET initialPitch TO 88.5.    // Starting pitch angle
-    SET pitchFactor TO 0.9.      // Controls the rate of gravity turn
-    SET altitudeExponent TO 0.38. // Exponent for smooth gravity turn
+    SET initialPitch TO 88.5.       // Starting pitch angle
+    SET pitchFactor TO 0.9.        // Controls the rate of gravity turn
+    SET altitudeExponent TO 0.38.  // Exponent for smooth gravity turn
+    SET moonInclination TO 28.6.   // Moon's orbital inclination in degrees
 
-    // Calculate launch azimuth for Moon's orbital inclination
-    SET earthLatitude TO 28.5.    // Latitude of Cape Canaveral in degrees
-    SET moonInclination TO 28.6.  // Moon's orbital inclination in degrees
-    SET launchAzimuth TO ARCSIN(COS(moonInclination) / COS(earthLatitude)). // Adjust for Earth's rotation
+    // Determine launch azimuth based on Moon's inclination
+    SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
 
-    // Ascent loop
-    UNTIL ship:orbit:apoapsis > targetApoapsis {
-        // Calculate dynamic pitch adjustment
+    PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
+    
+    // Begin ascent loop
+    UNTIL alt:radar > 100000 { // Continue ascent until high altitude
+        // Dynamic pitch calculation for gravity turn
         SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
-        LOCK steering TO heading(launchAzimuth, targetPitch). // Steer towards the Moon's inclination
+        LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
 
-        // Adjust throttle dynamically
+        // Full throttle until high atmosphere
         IF alt:radar < 35000 {
             LOCK throttle TO 1. // Full throttle below 35 km
         } ELSE {
-            SET throttleAdjustment TO (targetApoapsis - ship:orbit:apoapsis) / targetApoapsis.
-            LOCK throttle TO MAX(0.2, MIN(1, throttleAdjustment)). // Between 20% and 100%
+            LOCK throttle TO 0.7. // Reduce throttle for upper atmosphere
         }
 
-        // Auto-staging
+        // Auto-staging logic
         doAutoStage().
 
         // Debugging information
-        PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Apoapsis: " + ROUND(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + ROUND(throttle * 100, 1) + "%.".
-        WAIT 0.5.
+        PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km.".
+        WAIT 0.5. // Small delay for control updates
     }
 
-    // Hold prograde for circularization
-    PRINT "Target apoapsis reached. Holding prograde.".
-    LOCK steering TO prograde.
+    // Final adjustments in space
+    PRINT "Orbit inclination matched with Moon. Shutting down engines.".
     LOCK throttle TO 0.
+    LOCK steering TO prograde. // Maintain current direction for stability
 }
-
 
 //function doAscent {
 //  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
