@@ -127,6 +127,7 @@ function doCircularization {
   // Stop the burn
   LOCK THROTTLE TO 0.
   PRINT "Target velocity of 8.3 km/s achieved. Circularization complete!".
+  
   // Remove the node if it still exists
   REMOVE circNode.
  
