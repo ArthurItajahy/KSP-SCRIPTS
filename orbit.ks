@@ -67,8 +67,8 @@ FUNCTION doAscent {
   // Calculate final mass after fuel is burned
   SET finalMass TO initialMass - fuelMass.
 
-  // Calculate delta-v
-  SET deltaV TO Isp * g0 * LOG(initialMass / finalMass).
+  // Estimate delta-V with a simplified formula
+  SET deltaV TO Isp * g0 * (initialMass - finalMass) / initialMass.
 
   PRINT "Calculated Delta-V: " + ROUND(deltaV, 2) + " m/s.".
 
