@@ -53,15 +53,20 @@ FUNCTION doAscent {
   SET altitudeExponent TO 0.38.   // Exponent for smooth gravity turn
   SET moonInclination TO 28.6.    // Moon's orbital inclination in degrees
   SET targetDeltaV TO 8.3.        // Target Delta-V in m/s
-  set deltaVinte to calculateDeltaV().
-
+  
   // Determine launch azimuth based on Moon's inclination
   SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
+  
+   // Initialize deltaVinte by calculating the initial delta-V
+  SET deltaVinte TO calculateDeltaV().  // Initialize the deltaV variable
 
   PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
   
   // Begin ascent loop
-  UNTIL deltaVinte >= targetDeltaV {
+    UNTIL deltaVinte >= targetDeltaV {
+    // Recalculate Delta-V each iteration based on current fuel mass
+    SET deltaVinte TO calculateDeltaV().
+    
     // Calculate dynamic pitch based on altitude
     SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
     LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
@@ -92,20 +97,21 @@ FUNCTION doAscent {
   LOCK steering TO prograde. // Maintain current direction for stability
 }
 
+// Recalculate Delta-V using rocket equation
 FUNCTION calculateDeltaV {
-    // Define parameters
-    SET Isp TO 350.  // Specific impulse (seconds)
-    SET g0 TO 9.81.  // Gravitational acceleration (m/s²)
+  // Define parameters
+  SET Isp TO 350.  // Specific impulse (seconds)
+  SET g0 TO 9.81.  // Gravitational acceleration (m/s²)
 
-    // Get initial and final mass (wet and dry mass)
-    SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
-    SET fuelMass TO ship:liquidfuel * 5.  // Fuel mass (assuming density)
-    SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
+  // Get initial and final mass (wet and dry mass)
+  SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
+  SET fuelMass TO ship:liquidfuel * 5.  // Fuel mass (assuming density)
+  SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
 
-    // Calculate delta-V using the rocket equation
-    SET deltaV TO Isp * g0 * LN(initialMass / finalMass).
+  // Calculate delta-V using the rocket equation
+  SET deltaV TO Isp * g0 * LN(initialMass / finalMass).
 
-    RETURN deltaV.
+  RETURN deltaV.
 }
 
 //function doAscent {
