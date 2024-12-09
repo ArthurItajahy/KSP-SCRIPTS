@@ -128,9 +128,8 @@ function doCircularization {
   LOCK THROTTLE TO 0.
   PRINT "Target velocity of 8.3 km/s achieved. Circularization complete!".
   // Remove the node if it still exists
-  IF circNode:exists {
-      REMOVE circNode.
-  }
+  REMOVE circNode.
+ 
 
   // Final message
   PRINT "Circularization complete! Orbit established.".
