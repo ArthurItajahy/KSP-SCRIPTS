@@ -138,7 +138,37 @@ function doCircularization {
   // Final cleanup
   unlock steering.
 }
+function calculateBurnTime {
+  parameter delta_v.
 
+  // Get engine parameters
+  local isp is 0.
+  local thrust is 0.
+
+  list engines in myEngines.
+  for en in myEngines {
+    if en:ignition and not en:flameout {
+      set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
+      set thrust to thrust + en:maxThrust.
+    }
+  }
+
+  // Handle cases with no active engines
+  if isp <= 0 or thrust <= 0 {
+    print "Warning: No active engines detected. Using estimated ISP and thrust.".
+    set isp to 300. // Typical vacuum ISP
+    set thrust to 100000. // Estimated thrust
+  }
+
+  // Compute burn time
+  local g0 is 9.80665. // Standard gravity
+  local initialMass is ship:mass.
+  local finalMass is initialMass / constant():e^(delta_v / (isp * g0)).
+  local fuelFlow is thrust / (isp * g0).
+  local burnTime is (initialMass - finalMass) / fuelFlow.
+
+  return burnTime.
+}
 
 //function doAscent {
 //  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
