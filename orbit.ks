@@ -53,7 +53,7 @@ FUNCTION doAscent {
   SET altitudeExponent TO 0.38.   // Exponent for smooth gravity turn
   SET moonInclination TO 28.6.    // Moon's orbital inclination in degrees
   SET targetDeltaV TO 8.3.        // Target Delta-V in m/s
-  SET deltaV to DeltaV:CURRENt.
+
 
   // Determine launch azimuth based on Moon's inclination
   SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
@@ -61,7 +61,7 @@ FUNCTION doAscent {
   PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
   
   // Begin ascent loop
-  UNTIL deltaV >= targetDeltaV {
+  UNTIL SHIP:STAGEDELTAV(SHIP:STAGENUM):CURRENT >= targetDeltaV {
     // Calculate dynamic pitch based on altitude
     SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
     LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
@@ -78,7 +78,7 @@ FUNCTION doAscent {
     wait 1.
     
     // Debugging information
-    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(deltaV, 2) + " m/s.".
+    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(SHIP:STAGEDELTAV(SHIP:STAGENUM):CURRENT, 2) + " m/s.".
     
     WAIT 0.5. // Small delay for control updates
   }
