@@ -56,7 +56,7 @@ FUNCTION doAscent {
   
   // Determine launch azimuth based on Moon's inclination
   SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
-  
+
    // Initialize deltaVinte by calculating the initial delta-V
   SET deltaVinte TO calculateDeltaV().  // Initialize the deltaV variable
 
@@ -83,7 +83,7 @@ FUNCTION doAscent {
     wait 1.
     
     // Debugging information
-    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km, Delta-V: " + ROUND(deltaVinte, 2) + " m/s.".
+    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km".
     
     WAIT 0.5. // Small delay for control updates
   }
@@ -107,10 +107,12 @@ FUNCTION calculateDeltaV {
   SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
   SET fuelMass TO ship:liquidfuel * 5.  // Fuel mass (assuming density)
   SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
+  PRINT "FINAL MASS: " + finalMass.
+  PRINT "FUEL MASS: " + fuelMass.
 
   // Calculate delta-V using the rocket equation
   SET deltaV TO Isp * g0 * LN(initialMass / finalMass).
-
+  PRINT "DETAL V: "+ deltaV.
   RETURN deltaV.
 }
 
