@@ -107,17 +107,22 @@ function doCircularization {
 
   // Align to the maneuver node
   lock steering to circNode:burnvector.
-
-  // Execute the burn
-  print "Executing circularization burn...".
+// Start the burn
   lock throttle to 1.
-  until ship:orbit:periapsis > 100000.{
-    doAutoStage().
+  print "Throttle set to full power.".
+
+  // Keep burning until periapsis exceeds 100 km
+  until ship:orbit:periapsis > (body("Earth"):radius + 100000) {
+      doAutoStage(). // Auto-stage if necessary
+      wait 0.1.      // Small delay to reduce CPU usage
   }
 
-  wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000). // Cutoff conditions
+  // Fine-tune the burn to finish circularization
+  lock throttle to 0.2. // Reduce throttle for precision
+  print "Fine-tuning circularization...".
+  wait until circNode:deltav:mag < 1.0 or ship:orbit:periapsis > (body("Earth"):radius + 100000).
 
-  // Finish the burn
+  // Cut off the burn
   lock throttle to 0.
   remove circNode.
   print "Circularization complete! Orbit established.".
