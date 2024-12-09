@@ -55,120 +55,39 @@ FUNCTION doAscent {
     SET pitchFactor TO 0.9.      // Controls the rate of gravity turn
     SET altitudeExponent TO 0.38. // Exponent for smooth gravity turn
 
-    // Calculate launch azimuth for the Moon's inclination
-    SET moonInclination TO 28. // Moon's orbital inclination in degrees
-    SET launchAzimuth TO 90 - moonInclination. // Eastward offset for inclination
+    // Calculate launch azimuth for Moon's orbital inclination
+    SET earthLatitude TO 28.5.    // Latitude of Cape Canaveral in degrees
+    SET moonInclination TO 28.6.  // Moon's orbital inclination in degrees
+    SET launchAzimuth TO ARCSIN(COS(moonInclination) / COS(earthLatitude)). // Adjust for Earth's rotation
 
-    // Begin ascent loop
+    // Ascent loop
     UNTIL ship:orbit:apoapsis > targetApoapsis {
-        // Calculate dynamic pitch adjustment based on radar altitude
+        // Calculate dynamic pitch adjustment
         SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
-        LOCK steering TO heading(launchAzimuth, targetPitch). // Match the Moon's orbital inclination
+        LOCK steering TO heading(launchAzimuth, targetPitch). // Steer towards the Moon's inclination
 
         // Adjust throttle dynamically
         IF alt:radar < 35000 {
-            LOCK throttle TO 1. // Full throttle in lower atmosphere
+            LOCK throttle TO 1. // Full throttle below 35 km
         } ELSE {
             SET throttleAdjustment TO (targetApoapsis - ship:orbit:apoapsis) / targetApoapsis.
-            LOCK throttle TO MAX(0.2, MIN(1, throttleAdjustment)). // Throttle between 20% and 100%
+            LOCK throttle TO MAX(0.2, MIN(1, throttleAdjustment)). // Between 20% and 100%
         }
 
-        // Auto-staging logic
+        // Auto-staging
         doAutoStage().
 
         // Debugging information
-        PRINT "Target pitch: " + ROUND(targetPitch, 2) + "°, Apoapsis: " + ROUND(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + ROUND(throttle * 100, 1) + "%.".
-        WAIT 0.5. // Short delay for control updates
+        PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Apoapsis: " + ROUND(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + ROUND(throttle * 100, 1) + "%.".
+        WAIT 0.5.
     }
 
-    // Hold prograde after reaching target apoapsis
+    // Hold prograde for circularization
     PRINT "Target apoapsis reached. Holding prograde.".
     LOCK steering TO prograde.
-    LOCK throttle TO 0. // Temporarily cut throttle
+    LOCK throttle TO 0.
 }
 
-function doCircularization {
-  print "Preparing for circularization...".
-
-  // Calculate the required burn to circularize
-  local mu is body("Earth"):mu. // Gravitational parameter of Earth
-  local r_apoasis is ship:orbit:apoapsis. // Distance to apoapsis
-  local v_circular is sqrt(mu / r_apoasis). // Circular orbital velocity
-  local v_current is velocity:orbit:mag. // Current orbital velocity
-  local delta_v is v_circular - v_current. // Required delta-V
-
-  print "Delta-V for circularization: " + round(delta_v, 2) + " m/s.".
-
-  // Create a maneuver node
-  local circNode is node(time:seconds + eta:apoapsis, 0, delta_v, 0). // Create the burn node
-  add circNode.
-
-  // Align to the maneuver node
-  lock steering to circNode:burnvector.
-// Start main burn
-  LOCK THROTTLE TO 1. // Ensure throttle is set to full initially
-
-  UNTIL SHIP:VELOCITY:SURFACE:MAG > 8300 {
-      DOAUTOSTAGE(). // Auto-stage if necessary
-      PRINT "Speed: " + ROUND(SHIP:VELOCITY:SURFACE:MAG, 2) + " m/s, Periapsis: " + ROUND(SHIP:ORBIT:PERIAPSIS / 1000, 2) + " km" AT (0, 0). // Debugging info
-      WAIT 0.1. // Small delay to reduce CPU usage
-  }
-
-  // Reduce throttle for precision burn
-  LOCK THROTTLE TO 0.2. 
-  PRINT "Fine-tuning to reach target velocity...".
-
-  UNTIL SHIP:VELOCITY:SURFACE:MAG > 8300.1 OR SHIP:ORBIT:PERIAPSIS > (BODY("Earth"):RADIUS + 100000) {
-      // Monitor burn progress
-      PRINT "Speed: " + ROUND(SHIP:VELOCITY:SURFACE:MAG, 2) + " m/s, Periapsis: " + ROUND(SHIP:ORBIT:PERIAPSIS / 1000, 2) + " km" AT (0, 0).
-      WAIT 0.1. // Short delay for real-time updates
-  }
-
-  // Stop the burn
-  LOCK THROTTLE TO 0.
-  PRINT "Target velocity of 8.3 km/s achieved. Circularization complete!".
-  
-  // Remove the node if it still exists
-  REMOVE circNode.
- 
-
-  // Final message
-  PRINT "Circularization complete! Orbit established.".
-
-  // Final cleanup
-  UNLOCK STEERING.
-}
-function calculateBurnTime {
-  parameter delta_v.
-
-  // Get engine parameters
-  local isp is 0.
-  local thrust is 0.
-
-  list engines in myEngines.
-  for en in myEngines {
-    if en:ignition and not en:flameout {
-      set isp to isp + (en:isp * (en:maxThrust / ship:maxThrust)).
-      set thrust to thrust + en:maxThrust.
-    }
-  }
-
-  // Handle cases with no active engines
-  if isp <= 0 or thrust <= 0 {
-    print "Warning: No active engines detected. Using estimated ISP and thrust.".
-    set isp to 300. // Typical vacuum ISP
-    set thrust to 100000. // Estimated thrust
-  }
-
-  // Compute burn time
-  local g0 is 9.80665. // Standard gravity
-  local initialMass is ship:mass.
-  local finalMass is initialMass / constant():e^(delta_v / (isp * g0)).
-  local fuelFlow is thrust / (isp * g0).
-  local burnTime is (initialMass - finalMass) / fuelFlow.
-
-  return burnTime.
-}
 
 //function doAscent {
 //  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
