@@ -48,45 +48,43 @@ function doLaunch {
   doSafeStage().
 }
 
-function doAscent {
-  // Define key parameters
-  set targetApoapsis to 180000. // Target apoapsis in meters (180 km for low Earth orbit)
-  set initialPitch to 88.5. // Starting pitch angle
-  set pitchFactor to 0.9. // Controls the rate of gravity turn
-  set altitudeExponent to 0.38. // Exponent for smooth gravity turn
+FUNCTION doAscent {
+    // Define key parameters
+    SET targetApoapsis TO 180000. // Target apoapsis in meters (180 km for low Earth orbit)
+    SET initialPitch TO 88.5.    // Starting pitch angle
+    SET pitchFactor TO 0.9.      // Controls the rate of gravity turn
+    SET altitudeExponent TO 0.38. // Exponent for smooth gravity turn
 
-  // Target direction is already aligned with the Moon's inclination
-  set targetDirection to 87. // Close to eastward
+    // Calculate launch azimuth for the Moon's inclination
+    SET moonInclination TO 28. // Moon's orbital inclination in degrees
+    SET launchAzimuth TO 90 - moonInclination. // Eastward offset for inclination
 
-  // Ascent loop
-  until ship:orbit:apoapsis > targetApoapsis {
-    // Calculate dynamic pitch adjustment based on radar altitude
-    set targetPitch to initialPitch - pitchFactor * alt:radar^altitudeExponent.
-    lock steering to heading(targetDirection, targetPitch). // Update heading dynamically
+    // Begin ascent loop
+    UNTIL ship:orbit:apoapsis > targetApoapsis {
+        // Calculate dynamic pitch adjustment based on radar altitude
+        SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
+        LOCK steering TO heading(launchAzimuth, targetPitch). // Match the Moon's orbital inclination
 
-    // Adjust throttle dynamically to control ascent
-    if alt:radar < 35000 {
-      // Full throttle in lower atmosphere
-      lock throttle to 1.
-    } else {
-      // Reduce throttle as apoapsis approaches target
-      set throttleAdjustment to (targetApoapsis - ship:orbit:apoapsis) / targetApoapsis.
-      lock throttle to max(0.2, min(1, throttleAdjustment)). // Throttle between 20% and 100%
+        // Adjust throttle dynamically
+        IF alt:radar < 35000 {
+            LOCK throttle TO 1. // Full throttle in lower atmosphere
+        } ELSE {
+            SET throttleAdjustment TO (targetApoapsis - ship:orbit:apoapsis) / targetApoapsis.
+            LOCK throttle TO MAX(0.2, MIN(1, throttleAdjustment)). // Throttle between 20% and 100%
+        }
+
+        // Auto-staging logic
+        doAutoStage().
+
+        // Debugging information
+        PRINT "Target pitch: " + ROUND(targetPitch, 2) + "°, Apoapsis: " + ROUND(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + ROUND(throttle * 100, 1) + "%.".
+        WAIT 0.5. // Short delay for control updates
     }
 
-    // Auto-staging logic
-    doAutoStage().
-
-    // Print debugging information
-    print "Target pitch: " + round(targetPitch, 2) + "°, Apoapsis: " + round(ship:orbit:apoapsis / 1000, 1) + " km, Throttle: " + round(throttle * 100, 1) + "%.".
-
-    wait 0.5. // Short delay for control updates
-  }
-
-  // Once target apoapsis is reached, hold prograde for efficiency
-  print "Target apoapsis reached. Holding prograde.".
-  lock steering to prograde.
-  lock throttle to 0. // Cut throttle temporarily
+    // Hold prograde after reaching target apoapsis
+    PRINT "Target apoapsis reached. Holding prograde.".
+    LOCK steering TO prograde.
+    LOCK throttle TO 0. // Temporarily cut throttle
 }
 
 function doCircularization {
