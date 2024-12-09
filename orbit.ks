@@ -96,15 +96,17 @@ FUNCTION calculateDeltaV {
     // Define parameters
     SET Isp TO 350.  // Specific impulse (seconds)
     SET g0 TO 9.81.  // Gravitational acceleration (m/s²)
-    SET initialMass TO part:wetmass.  // Initial mass (kg)
-    SET finalMass TO part:drymass.    // Final mass (kg)
+
+    // Get initial and final mass (wet and dry mass)
+    SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
+    SET fuelMass TO ship:liquidfuel * 5.  // Fuel mass (assuming density)
+    SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
 
     // Calculate delta-V using the rocket equation
     SET deltaV TO Isp * g0 * LN(initialMass / finalMass).
 
-    return deltaV.
+    RETURN deltaV.
 }
-
 
 //function doAscent {
 //  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
