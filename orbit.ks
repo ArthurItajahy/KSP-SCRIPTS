@@ -1,140 +1,183 @@
-// Functional Launch Script for Earth
-// TODO: Adjust throttle dynamically based on atmospheric pressure
-// TODO: Incorporate engine ignitions and ullage calculations
-// TODO: Enhance maneuver convergence accurac
+// Functional Launch Script
 
 function main {
-  startingMission().
-  startCountDown().
   doLaunch().
   doAscent().
-  doSafeStage().
-
- 
-
-
-  print "Mission Completed!".  // Print mission completion message
-
-  // Unlock all controls
-  unlock throttle.  // Unlock throttle control (optional, as throttle is already set to 0)
-
-  // End Script
-  // Stop the script
-  print "Script completed successfully!".  // Inform the user
-  wait until false.  // Prevent the script from executing further
-
-}
-function startingMission{
-  PRINT "=========================================".
-  PRINT "      MISSION: LOW ORBIT SATELLITE".
-  PRINT "        ROCKET: ARARA-90-STAR-ONE".
-  PRINT "=========================================".
-}
-function startCountDown{
-  PRINT "Counting down:".
-  FROM {local countdown is 10.} UNTIL countdown = 0 STEP {SET countdown to countdown - 1.} DO {
-    PRINT "..." + countdown.
-    WAIT 1. // pauses the script here for 1 second.
+  until apoapsis > 100000 {
+    doAutoStage().
   }
+  doShutdown().
+  doCircularization().
+  doTransfer().
+  print "It ran!".
+  wait until false.
+}
+
+function doCircularization {
+  local circ is list(0).
+  set circ to improveConverge(circ, eccentricityScore@).
+  executeManeuver(list(time:seconds + eta:apoapsis, 0, 0, circ[0])).
+}
+
+function protectFromPast {
+  parameter originalFunction.
+  local replacementFunction is {
+    parameter data.
+    if data[0] < time:seconds + 15 {
+      return 2^64.
+    } else {
+      return originalFunction(data).
+    }
+  }.
+  return replacementFunction@.
+}
+
+function doTransfer {
+  // local transfer is list(time:seconds + 30, 0, 0, 0).
+  // set transfer to improveConverge(transfer, munTransferScore@).
+  // executeManeuver(transfer).
+}
+
+function eccentricityScore {
+  parameter data.
+  local mnv is node(time:seconds + eta:apoapsis, 0, 0, data[0]).
+  addManeuverToFlightPlan(mnv).
+  local result is mnv:orbit:eccentricity.
+  removeManeuverFromFlightPlan(mnv).
+  return result.
+}
+
+function improveConverge {
+  parameter data, scoreFunction.
+  for stepSize in list(100, 10, 1) {
+    until false {
+      local oldScore is scoreFunction(data).
+      set data to improve(data, stepSize, scoreFunction).
+      if oldScore <= scoreFunction(data) {
+        break.
+      }
+    }
+  }
+  return data.
+}
+
+function improve {
+  parameter data, stepSize, scoreFunction.
+  local scoreToBeat is scoreFunction(data).
+  local bestCandidate is data.
+  local candidates is list().
+  local index is 0.
+  until index >= data:length {
+    local incCandidate is data:copy().
+    local decCandidate is data:copy().
+    set incCandidate[index] to incCandidate[index] + stepSize.
+    set decCandidate[index] to decCandidate[index] - stepSize.
+    candidates:add(incCandidate).
+    candidates:add(decCandidate).
+    set index to index + 1.
+  }
+  for candidate in candidates {
+    local candidateScore is scoreFunction(candidate).
+    if candidateScore < scoreToBeat {
+      set scoreToBeat to candidateScore.
+      set bestCandidate to candidate.
+    }
+  }
+  return bestCandidate.
+}
+
+function executeManeuver {
+  parameter mList.
+  local mnv is node(mList[0], mList[1], mList[2], mList[3]).
+  addManeuverToFlightPlan(mnv).
+  local startTime is calculateStartTime(mnv).
+  wait until time:seconds > startTime - 10.
+  lockSteeringAtManeuverTarget(mnv).
+  wait until time:seconds > startTime.
+  lock throttle to 1.
+  until isManeuverComplete(mnv) {
+    doAutoStage().
+  }
+  lock throttle to 0.
+  unlock steering.
+  removeManeuverFromFlightPlan(mnv).
+}
+
+function addManeuverToFlightPlan {
+  parameter mnv.
+  add mnv.
+}
+
+function calculateStartTime {
+  parameter mnv.
+  return time:seconds + mnv:eta - maneuverBurnTime(mnv) / 2.
+}
+
+function maneuverBurnTime {
+  parameter mnv.
+  local dV is mnv:deltaV:mag.
+  local g0 is 9.80665.
+  local isp is 0.
+
+  list engines in myEngines.
+  for en in myEngines {
+    if en:ignition and not en:flameout {
+      set isp to isp + (en:isp * (en:availableThrust / ship:availableThrust)).
+    }
+  }
+
+  local mf is ship:mass / constant():e^(dV / (isp * g0)).
+  local fuelFlow is ship:availableThrust / (isp * g0).
+  local t is (ship:mass - mf) / fuelFlow.
+
+  return t.
+}
+
+function lockSteeringAtManeuverTarget {
+  parameter mnv.
+  lock steering to mnv:burnvector.
+}
+
+function isManeuverComplete {
+  parameter mnv.
+  if not(defined originalVector) or originalVector = -1 {
+    declare global originalVector to mnv:burnvector.
+  }
+  if vang(originalVector, mnv:burnvector) > 90 {
+    declare global originalVector to -1.
+    return true.
+  }
+  return false.
+}
+
+function removeManeuverFromFlightPlan {
+  parameter mnv.
+  remove mnv.
 }
 
 function doLaunch {
-  print "Launching...".
   lock throttle to 1.
   doSafeStage().
-  wait 3.
   doSafeStage().
 }
 
-FUNCTION doAscent {
-  // Define key parameters
-  SET initialPitch TO 88.5.       // Starting pitch angle
-  SET pitchFactor TO 0.9.         // Controls the rate of gravity turn
-  SET altitudeExponent TO 0.38.   // Exponent for smooth gravity turn
-  SET moonInclination TO 28.6.    // Moon's orbital inclination in degrees
-  SET targetDeltaV TO 8.3.        // Target Delta-V in m/s
-  
-  // Determine launch azimuth based on Moon's inclination
-  SET launchAzimuth TO 90 - moonInclination. // Adjust for eastward launch
-
-   // Initialize deltaVinte by calculating the initial delta-V
-  SET deltaVinte TO calculateDeltaV().  // Initialize the deltaV variable
-
-  PRINT "Launching to Moon's inclination of " + moonInclination + "°.".
-  
-  // Begin ascent loop
-    UNTIL deltaVinte >= targetDeltaV {
-    // Recalculate Delta-V each iteration based on current fuel mass
-    SET deltaVinte TO calculateDeltaV().
-    
-    // Calculate dynamic pitch based on altitude
-    SET targetPitch TO initialPitch - pitchFactor * alt:radar^altitudeExponent.
-    LOCK steering TO heading(launchAzimuth, targetPitch). // Align with Moon's inclination
-
-    // Adjust throttle dynamically
-    IF alt:radar < 35000 {
-      LOCK throttle TO 1. // Full throttle below 35 km
-    } ELSE {
-      LOCK throttle TO 0.7. // Reduce throttle for upper atmosphere
-    }
-
-    // Auto-staging logic
-    doAutoStage().
-    wait 1.
-    
-    // Debugging information
-    PRINT "Pitch: " + ROUND(targetPitch, 2) + "°, Altitude: " + ROUND(alt:radar / 1000, 1) + " km".
-    
-    WAIT 0.5. // Small delay for control updates
-  }
-
-  // Once the target Delta-V is achieved, cut the throttle
-  LOCK throttle TO 0.
-  PRINT "Target Delta-V reached. Burn complete.".
-  
-  // Final adjustments in space
-  PRINT "Orbit inclination matched with Moon. Shutting down engines.".
-  LOCK steering TO prograde. // Maintain current direction for stability
+function doAscent {
+  lock targetPitch to 88.963 - 1.03287 * alt:radar^0.409511.
+  set targetDirection to 90.
+  lock steering to heading(targetDirection, targetPitch).
 }
-
-// Recalculate Delta-V using rocket equation
-FUNCTION calculateDeltaV {
-  // Define parameters
-  SET Isp TO 350.  // Specific impulse (seconds)
-  SET g0 TO 9.81.  // Gravitational acceleration (m/s²)
-
-  // Get initial and final mass (wet and dry mass)
-  SET initialMass TO ship:mass.  // Initial mass (wet mass) of the rocket
-  SET fuelMass TO ship:DELTAV.  // Fuel mass (assuming density)
-  
-  SET finalMass TO initialMass - fuelMass.  // Final mass (dry mass)
-  PRINT "FINAL MASS: " + finalMass.
-  PRINT "FUEL MASS: " + fuelMass.
-
-  // Calculate delta-V using the rocket equation
-  SET deltaV TO Isp * g0 * LN(initialMass / finalMass).
-  PRINT "DETAL V: "+ deltaV.
-  RETURN deltaV.
-}
-
-//function doAscent {
-//  lock targetPitch to 88.5 - 0.9 * alt:radar^0.38. // Adjusted gravity turn for Earth
- // set targetDirection to 87. // Eastward launch
- // lock steering to heading(targetDirection, targetPitch).
-//  print targetPitch.
-//}
 
 function doAutoStage {
   if not(defined oldThrust) {
     global oldThrust is ship:availablethrust.
   }
   if ship:availablethrust < (oldThrust - 10) {
-    doSafeStage(). 
-    wait 4.
-    lock throttle to 0.3.
-    wait 5.
-    lock throttle to 0.7.
-    wait 5.
+    until false {
+      doSafeStage(). wait 1.
+      if ship:availableThrust > 0 { 
+        break.
+      }
+    }
     global oldThrust is ship:availablethrust.
   }
 }
@@ -142,7 +185,6 @@ function doAutoStage {
 function doShutdown {
   lock throttle to 0.
   lock steering to prograde.
-  print "Engines Shut Down.".
 }
 
 function doSafeStage {
@@ -150,8 +192,4 @@ function doSafeStage {
   stage.
 }
 
-
-// IKNOW 
-//Iknow
-// Start the mission
 main().
